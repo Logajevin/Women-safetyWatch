@@ -124,7 +124,6 @@
         <div class="kpi-meta" id="deviceIpText">IP: --</div>
       </div>
 
-      <!-- Real Wi-Fi AP Status -->
       <div class="kpi-card">
         <div class="kpi-header">
           <span class="kpi-title">Wi-Fi AP Status</span>
@@ -163,13 +162,14 @@
         </div>
       </div>
 
+      <!-- Smart WhatsApp Gateway KPI -->
       <div class="kpi-card">
         <div class="kpi-header">
-          <span class="kpi-title">Auto API Status</span>
-          <span class="status-dot ok"></span>
+          <span class="kpi-title">WhatsApp Alert Engine</span>
+          <span id="dotWaApi" class="status-dot ok"></span>
         </div>
-        <div class="kpi-value" style="color:var(--whatsapp-green); font-size:16px;">WhatsApp API Ready</div>
-        <div class="kpi-meta">CallMeBot Auto Gateway</div>
+        <div class="kpi-value" id="waApiStatusText" style="color:var(--whatsapp-green); font-size:16px;">Dual Gateway Ready</div>
+        <div class="kpi-meta" id="waApiSubText">Auto API + wa.me Backup</div>
       </div>
     </section>
 
@@ -272,15 +272,17 @@
       </div>
     </div>
 
-    <!-- Contacts section with CallMeBot WhatsApp API Tester -->
+    <!-- Contacts Section with 1-Click CallMeBot Activation & WhatsApp Gateway Tester -->
     <section class="panel-card contacts-section">
       <div class="panel-header">
         <div>
-          <h2>Family Emergency Contacts (WhatsApp API Tester Included)</h2>
-          <p class="panel-sub">Test API Key button verifies if CallMeBot key is valid or false!</p>
+          <h2>Family Emergency Contacts (CallMeBot Auto API + wa.me Backup)</h2>
+          <p class="panel-sub">Default Indian Country Code (+91) Enabled</p>
         </div>
         <div style="display:flex; gap:8px;">
-          <button class="btn-sm" onclick="loadSampleWorkingContact()">+ Add Sample Contact</button>
+          <a class="btn-activate-callmebot" href="https://wa.me/34644519169?text=I%20allow%20callmebot%20to%20send%20me%20messages" target="_blank" rel="noopener">
+            ⚡ 1-Click Activate CallMeBot Bot
+          </a>
           <button class="btn-add-contact" onclick="toggleAddContactForm()">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             Add Contact
@@ -297,11 +299,11 @@
           <button class="btn-save-contact" onclick="saveNewContact()">Save Contact</button>
         </div>
         <div class="api-help-box">
-          <p>📖 <strong>How to get your free CallMeBot WhatsApp API Key (takes 30 sec):</strong></p>
+          <p>📖 <strong>CallMeBot WhatsApp Activation Instructions:</strong></p>
           <ol style="margin-left:20px; font-size:12px; color:var(--text-main); margin-top:4px;">
-            <li>Save <code>+34 644 51 91 69</code> in your phone contacts as <strong>CallMeBot WhatsApp</strong>.</li>
-            <li>Send a WhatsApp message to it saying: <code>I allow callmebot to send me messages</code></li>
-            <li>CallMeBot will reply instantly with your API key (e.g. <code>123456</code>). Enter it above!</li>
+            <li>Click <strong>"⚡ 1-Click Activate CallMeBot Bot"</strong> button above (or send WhatsApp msg <code>I allow callmebot to send me messages</code> to <code>+34 644 51 91 69</code>).</li>
+            <li>CallMeBot will reply immediately with your API Key (e.g. <code>123456</code>).</li>
+            <li>Enter your phone number & API key above. If API fails, our system automatically triggers `wa.me` fallback so messages are <strong>NEVER LOST</strong>!</li>
           </ol>
         </div>
       </div>

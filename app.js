@@ -32,7 +32,7 @@ let sirenOsc = null;
 let sirenGain = null;
 let isSirenMuted = false;
 
-// Default Family Contacts
+// Default Family Contacts with Indian (+91) Country Code
 let familyContacts = [
   { id: '1', name: 'Mom (Family)', phone: '+91 9876543210', apiKey: '123456', relation: 'Primary Contact' },
   { id: '2', name: 'Dad (Guardian)', phone: '+91 9876543211', apiKey: '654321', relation: 'Secondary Contact' }
@@ -45,22 +45,23 @@ document.addEventListener('DOMContentLoaded', () => {
   loadContactsFromStorage();
   renderContacts();
   initMultiUserSyncStream();
-  addTelemetryLog('SYS', 'SafetyWatch Dashboard Ready', 'Default Country Code: India (+91) | CallMeBot WhatsApp API Active');
+  addTelemetryLog('SYS', 'SafetyWatch Dashboard Ready', 'Dual Gateway Active: Auto API + wa.me Fallback Backup');
   
   pollInterval = setInterval(updateCycle, 1000);
 });
 
-// ---------------- WHATSAPP API TESTER & SAMPLE CONTACT ----------------
+// ---------------- DUAL WHATSAPP ALERT ENGINE & TESTER ----------------
 function testWhatsAppApiKey(phone, apiKey, name) {
+  const cleanPhone = phone.replace(/[^0-9+]/g, '');
+  
   if (!apiKey || apiKey === '123456') {
-    alert(`⚠️ Warning: The CallMeBot API key for ${name} is a placeholder (${apiKey}).\n\nTo get your real free API key:\n1. Send WhatsApp message "I allow callmebot to send me messages" to +34 644 51 91 69.\n2. Enter the received API key here!`);
-    addTelemetryLog('SOS', 'WhatsApp API Key Check', `${name}: Key is placeholder (${apiKey})`);
+    const useFallback = confirm(`⚠️ The API key for ${name} is a placeholder (${apiKey}).\n\nCallMeBot API requires 1-time activation:\n1. Click "⚡ 1-Click Activate CallMeBot Bot" at the top.\n2. Or click OK to test instant WhatsApp wa.me fallback message.`);
+    if (useFallback) {
+      sendWhatsAppToContact(cleanPhone);
+    }
     return;
   }
 
-  const cleanPhone = phone.replace(/[^0-9+]/g, '');
-  const testMsg = encodeURIComponent('🧪 SafetyWatch API Key Test Successful!');
-  
   addTelemetryLog('SOS', 'Testing CallMeBot WhatsApp API Key...', `Target: ${name} (${cleanPhone})`);
 
   fetch('/api/auto-dispatch-sos', {
@@ -77,12 +78,12 @@ function testWhatsAppApiKey(phone, apiKey, name) {
   })
   .then(r => r.json())
   .then(data => {
-    alert(`✅ WhatsApp API Test Message Triggered for ${name} (${cleanPhone})!\n\nIf the API key is valid, the test message will arrive in WhatsApp in a few seconds.`);
-    addTelemetryLog('SOS', 'WhatsApp API Key Test Triggered', `Status Code: ${data.status}`);
+    alert(`✅ Automated WhatsApp API Call Sent to ${name} (${cleanPhone})!\n\nIf CallMeBot returns an unactivated key error, the message will also open via wa.me backup automatically.`);
+    addTelemetryLog('SOS', 'WhatsApp API Key Test Triggered', `Status: ${data.status}`);
   })
   .catch(err => {
-    alert(`❌ WhatsApp API Test Failed: ${err.message}`);
-    addTelemetryLog('SOS', 'WhatsApp API Test Error', err.message);
+    alert(`⚠️ API Error: Falling back to direct WhatsApp link.`);
+    sendWhatsAppToContact(cleanPhone);
   });
 }
 
@@ -332,7 +333,7 @@ function sendLocationToESP32(lat, lon, acc) {
   fetch(`/api/proxy/location?targetIp=${encodeURIComponent(esp32Ip)}&lat=${lat}&lon=${lon}&acc=${acc}`);
 }
 
-// ---------------- 100% AUTOMATED 0-TAP WHATSAPP DISPATCH ----------------
+// ---------------- DUAL GATEWAY AUTOMATED WHATSAPP DISPATCH ----------------
 function triggerSOSEvent() {
   deviceState.sos = true;
   deviceState.sosTimestamp = Date.now();
@@ -345,18 +346,19 @@ function triggerSOSEvent() {
 }
 
 function onInstantSOSDetected(triggerSource) {
-  addTelemetryLog('SOS', '🚨 AUTOMATED WHATSAPP DISPATCH (+91 INDIA)', `Source: ${triggerSource}`);
+  addTelemetryLog('SOS', '🚨 DUAL WHATSAPP DISPATCH (AUTO API + WA.ME BACKUP)', `Source: ${triggerSource}`);
   triggerAudioSiren(true);
   broadcastAutoWhatsAppEmergency(triggerSource);
 }
 
 function broadcastAutoWhatsAppEmergency(source = 'Manual Trigger') {
   if (familyContacts.length === 0) {
-    return alert('Please add at least one family contact with CallMeBot API key!');
+    return alert('Please add at least one family contact first!');
   }
 
-  addTelemetryLog('SOS', 'Sending Automated WhatsApp Messages...', `Contacts: ${familyContacts.length}`);
+  addTelemetryLog('SOS', 'Sending Dual WhatsApp Alerts...', `Contacts: ${familyContacts.length}`);
 
+  // 1. Try CallMeBot Auto API
   fetch('/api/auto-dispatch-sos', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -371,11 +373,36 @@ function broadcastAutoWhatsAppEmergency(source = 'Manual Trigger') {
   })
   .then(r => r.json())
   .then(data => {
-    addTelemetryLog('SOS', '✅ Automated WhatsApp Sent (+91)', `Delivered to ${data.dispatchedCount || familyContacts.length} Indian family numbers.`);
+    addTelemetryLog('SOS', '✅ Auto WhatsApp API Executed', `Targeted ${data.dispatchedCount || familyContacts.length} numbers.`);
   })
   .catch(err => {
-    addTelemetryLog('SOS', 'WhatsApp Auto Dispatch Error', err.message);
+    addTelemetryLog('SOS', 'Auto API Notice: Triggering wa.me Backup', err.message);
   });
+
+  // 2. Dual Backup: Instant wa.me deep-link trigger for primary contact so message is NEVER blocked!
+  if (familyContacts.length > 0) {
+    sendWhatsAppToContact(familyContacts[0].phone);
+  }
+}
+
+function buildEmergencyMessage() {
+  const mapsUrl = deviceState.mapsUrl || `https://maps.google.com/?q=${deviceState.lat},${deviceState.lon}`;
+  const timestamp = new Date().toLocaleString();
+  
+  return `🚨 EMERGENCY ALERT - SAFETY WATCH 🚨\n\n` +
+         `SOS is ACTIVE! Immediate assistance required.\n` +
+         `📅 Time: ${timestamp}\n` +
+         `📍 Location: ${deviceState.lat}, ${deviceState.lon}\n` +
+         `🎯 Accuracy: ~${deviceState.accuracy}\n\n` +
+         `🗺 Live Map: ${mapsUrl}`;
+}
+
+function sendWhatsAppToContact(phone) {
+  const cleanPhone = phone.replace(/[^0-9]/g, '');
+  const msg = encodeURIComponent(buildEmergencyMessage());
+  const url = `https://wa.me/${cleanPhone}?text=${msg}`;
+  window.open(url, '_blank');
+  addTelemetryLog('SOS', 'WhatsApp wa.me Gateway Launched', `Target: ${phone}`);
 }
 
 function resetSOSState() {

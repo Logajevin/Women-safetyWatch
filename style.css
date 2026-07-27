@@ -136,6 +136,22 @@ body {
   box-shadow: 0 0 14px rgba(0, 242, 254, 0.25);
 }
 
+.btn-activate-callmebot {
+  background: rgba(37, 211, 102, 0.18);
+  color: var(--whatsapp-green);
+  border: 1px solid rgba(37, 211, 102, 0.4);
+  padding: 8px 14px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: transform 0.15s ease;
+}
+.btn-activate-callmebot:hover { transform: scale(1.02); background: rgba(37, 211, 102, 0.28); }
+
 .modal-overlay {
   position: fixed;
   top: 0; left: 0; right: 0; bottom: 0;

@@ -1,5 +1,5 @@
 // ============================================================================
-// SafetyWatch AI — Bulletproof SOS Trigger & Multi-User Sync Dashboard
+// SafetyWatch AI — Ultra-Fast Real-Time Hardware SOS Sync Dashboard
 // ============================================================================
 
 let currentMode = 'simulator';
@@ -33,7 +33,6 @@ let sirenOsc = null;
 let sirenGain = null;
 let isSirenMuted = false;
 
-// Default Family Contacts with Indian (+91) Country Code
 let familyContacts = [
   { id: '1', name: 'Mom (Primary)', phone: '+91 9876543210', apiKey: '123456', relation: 'Primary Contact' },
   { id: '2', name: 'Dad (Guardian)', phone: '+91 9876543211', apiKey: '654321', relation: 'Secondary Contact' }
@@ -48,9 +47,10 @@ document.addEventListener('DOMContentLoaded', () => {
   initMultiUserSyncStream();
   startAutomaticMobileGPS();
   
-  addTelemetryLog('SYS', 'SafetyWatch Ready', 'SOS Alert Engine Armed (Hardware + Web)');
+  addTelemetryLog('SYS', 'SafetyWatch Ready', 'Ultra-Fast Polling (400ms) Enabled for Hardware SOS');
   
-  pollInterval = setInterval(updateCycle, 800);
+  // Fast 400ms polling to detect hardware button press instantly!
+  pollInterval = setInterval(updateCycle, 400);
 });
 
 // ---------------- AUTOMATIC MOBILE GPS TRACKING ----------------
@@ -78,35 +78,112 @@ function startAutomaticMobileGPS() {
   );
 }
 
-// ---------------- BULLETPROOF SOS TRIGGER ENGINE ----------------
+// ---------------- REAL-TIME HARDWARE & WEB STATUS POLLING ----------------
+function updateCycle() {
+  deviceState.uptime++;
+
+  if (currentMode === 'simulator') {
+    deviceState.online = true;
+    deviceState.wifi = 'Simulated AP';
+    deviceState.oled = 'OK';
+  } else {
+    fetchLiveStatus();
+  }
+
+  // Detect Hardware SOS Press from ESP32 Watch!
+  if (deviceState.sos && !lastSosState) {
+    onInstantSOSDetected('Hardware Watch Button Press');
+  }
+  lastSosState = deviceState.sos;
+
+  renderUI();
+}
+
+function fetchLiveStatus() {
+  const startTime = Date.now();
+
+  // Try direct fetch to ESP32 first (Fastest for local Wi-Fi)
+  const directUrl = `http://${esp32Ip}/status`;
+  const proxyUrl = `/api/proxy/status?targetIp=${encodeURIComponent(esp32Ip)}`;
+
+  fetch(directUrl, { signal: AbortSignal.timeout(1200) })
+    .then(r => r.json())
+    .then(data => processStatusData(data, startTime))
+    .catch(() => {
+      // Fallback to Node proxy if direct browser fetch is blocked by CORS/HTTPS
+      fetch(proxyUrl, { signal: AbortSignal.timeout(1500) })
+        .then(r => r.json())
+        .then(data => processStatusData(data, startTime))
+        .catch(err => {
+          deviceState.online = false;
+          deviceState.wifi = 'Disconnected';
+          deviceState.oled = 'Not Detected';
+          deviceState.pingMs = 0;
+        });
+    });
+}
+
+function processStatusData(data, startTime) {
+  deviceState.pingMs = Date.now() - startTime;
+  deviceState.online = true;
+  deviceState.wifi = 'Connected';
+  deviceState.ip = data.ip || esp32Ip;
+  deviceState.oled = data.oled || 'OK';
+  
+  // Hardware SOS State Detection
+  if (data.sos === true) {
+    if (!deviceState.sos) {
+      deviceState.sos = true;
+      deviceState.sosTimestamp = Date.now();
+      onInstantSOSDetected('Hardware Watch Button Press');
+    }
+  } else if (data.sos === false && deviceState.sos) {
+    deviceState.sos = false;
+  }
+
+  if (data.latitude && data.latitude !== 'N/A') {
+    deviceState.lat = data.latitude;
+    deviceState.lon = data.longitude;
+    updateMapPosition(deviceState.lat, deviceState.lon);
+  } else {
+    sendLocationToESP32(deviceState.lat, deviceState.lon, deviceState.accuracy);
+  }
+
+  renderUI();
+}
+
+function sendLocationToESP32(lat, lon, acc) {
+  const directUrl = `http://${esp32Ip}/location?lat=${lat}&lon=${lon}&acc=${acc}`;
+  const proxyUrl = `/api/proxy/location?targetIp=${encodeURIComponent(esp32Ip)}&lat=${lat}&lon=${lon}&acc=${acc}`;
+
+  fetch(directUrl, { signal: AbortSignal.timeout(1000) })
+    .catch(() => fetch(proxyUrl).catch(() => {}));
+}
+
+// ---------------- SOS TRIGGER & WHATSAPP ALERT ENGINE ----------------
 function triggerSOSEvent() {
   deviceState.sos = true;
   deviceState.sosTimestamp = Date.now();
   
   if (currentMode === 'live') {
-    fetch(`/api/proxy/sos?targetIp=${encodeURIComponent(esp32Ip)}`).catch(() => {});
+    const directUrl = `http://${esp32Ip}/sos`;
+    fetch(directUrl).catch(() => fetch(`/api/proxy/sos?targetIp=${encodeURIComponent(esp32Ip)}`).catch(() => {}));
   }
 
   onInstantSOSDetected('Web SOS Button Click');
 }
 
 function onInstantSOSDetected(triggerSource) {
-  addTelemetryLog('SOS', '🚨 CRITICAL EMERGENCY SOS ACTIVATED', `Source: ${triggerSource}`);
+  addTelemetryLog('SOS', '🚨 HARDWARE SOS DETECTED ON WEB!', `Source: ${triggerSource}`);
   
-  // 1. Play Loud Siren Sound
   triggerAudioSiren(true);
-  
-  // 2. Show Flashing Red Banner
   renderUI();
-  
-  // 3. Dispatch WhatsApp Emergency Message
   broadcastAutoWhatsAppEmergency(triggerSource);
 }
 
 function broadcastAutoWhatsAppEmergency(source = 'SOS Trigger') {
   addTelemetryLog('SOS', 'Dispatching Emergency WhatsApp Alerts...', `Contacts: ${familyContacts.length}`);
 
-  // 1. Try CallMeBot Auto API
   fetch('/api/auto-dispatch-sos', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -127,7 +204,6 @@ function broadcastAutoWhatsAppEmergency(source = 'SOS Trigger') {
     addTelemetryLog('SOS', 'API Notice: Launching wa.me Backup', err.message);
   });
 
-  // 2. Direct Instant WhatsApp Deep-Link Fallback
   if (familyContacts.length > 0) {
     sendWhatsAppToContact(familyContacts[0].phone);
   }
@@ -138,7 +214,7 @@ function buildEmergencyMessage() {
   const timestamp = new Date().toLocaleString();
   
   return `🚨 EMERGENCY ALERT - SAFETY WATCH 🚨\n\n` +
-         `SOS IS ACTIVE! Immediate assistance required.\n` +
+         `HARDWARE SOS BUTTON PRESSED!\n` +
          `📅 Time: ${timestamp}\n` +
          `📍 Location: ${deviceState.lat}, ${deviceState.lon}\n` +
          `🎯 Accuracy: ~${deviceState.accuracy}\n\n` +
@@ -160,7 +236,7 @@ function resetSOSState() {
   triggerAudioSiren(false);
 
   if (currentMode === 'live') {
-    fetch(`/api/proxy/reset?targetIp=${encodeURIComponent(esp32Ip)}`).catch(() => {});
+    fetch(`http://${esp32Ip}/reset`).catch(() => fetch(`/api/proxy/reset?targetIp=${encodeURIComponent(esp32Ip)}`).catch(() => {}));
   }
 
   renderUI();
@@ -169,7 +245,7 @@ function resetSOSState() {
 function triggerVibrationTest() {
   addTelemetryLog('SYS', 'Vibration Test', 'Motor pulse (1.5s)');
   if (currentMode === 'live') {
-    fetch(`/api/proxy/sos?targetIp=${encodeURIComponent(esp32Ip)}`).catch(() => {});
+    fetch(`http://${esp32Ip}/sos`).catch(() => fetch(`/api/proxy/sos?targetIp=${encodeURIComponent(esp32Ip)}`).catch(() => {}));
   } else {
     alert('Vibration Motor Pulse Triggered (1.5s)!');
   }
@@ -330,70 +406,6 @@ function connectLiveDevice() {
     addTelemetryLog('SYS', 'IP Configured', `Targeting ESP32 at ${esp32Ip}`);
     fetchLiveStatus();
   }
-}
-
-function updateCycle() {
-  deviceState.uptime++;
-
-  if (currentMode === 'simulator') {
-    deviceState.online = true;
-    deviceState.wifi = 'Simulated AP';
-    deviceState.oled = 'OK';
-    deviceState.pingMs = Math.floor(Math.random() * 8) + 10;
-  } else {
-    fetchLiveStatus();
-  }
-
-  // Detect SOS state change from ESP32 hardware!
-  if (deviceState.sos && !lastSosState) {
-    onInstantSOSDetected('Hardware Watch Button Press');
-  }
-  lastSosState = deviceState.sos;
-
-  renderUI();
-}
-
-function fetchLiveStatus() {
-  const startTime = Date.now();
-  const proxyUrl = `/api/proxy/status?targetIp=${encodeURIComponent(esp32Ip)}`;
-
-  fetch(proxyUrl)
-    .then(r => {
-      if (!r.ok) throw new Error('ESP32 Unreachable');
-      return r.json();
-    })
-    .then(data => {
-      deviceState.pingMs = Date.now() - startTime;
-      deviceState.online = true;
-      deviceState.wifi = 'Connected';
-      deviceState.ip = data.ip || esp32Ip;
-      deviceState.oled = data.oled || 'OK';
-      
-      if (data.sos) {
-        deviceState.sos = true;
-      }
-
-      if (data.latitude && data.latitude !== 'N/A') {
-        deviceState.lat = data.latitude;
-        deviceState.lon = data.longitude;
-        deviceState.accuracy = data.accuracy || '15m';
-        updateMapPosition(deviceState.lat, deviceState.lon, deviceState.accuracy);
-      } else {
-        sendLocationToESP32(deviceState.lat, deviceState.lon, deviceState.accuracy);
-      }
-    })
-    .catch(err => {
-      deviceState.online = false;
-      deviceState.wifi = 'Disconnected';
-      deviceState.oled = 'Not Detected';
-      deviceState.pingMs = 0;
-    });
-}
-
-function sendLocationToESP32(lat, lon, acc) {
-  fetch(`/api/proxy/location?targetIp=${encodeURIComponent(esp32Ip)}&lat=${lat}&lon=${lon}&acc=${acc}`)
-    .then(r => r.json())
-    .catch(() => {});
 }
 
 // ---------------- CONTACTS MANAGEMENT WITH +91 FORMATTING ----------------

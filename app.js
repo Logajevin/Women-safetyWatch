@@ -1,10 +1,11 @@
 // ============================================================================
-// SafetyWatch AI — Multi-User Live Sync Dashboard (Option 2 Automated)
+// SafetyWatch AI — Auto Mobile GPS Sync & Multi-User Dashboard
 // ============================================================================
 
 let currentMode = 'simulator';
 let esp32Ip = '192.168.4.1';
 let pollInterval = null;
+let autoGpsWatchId = null;
 let lastSosState = false;
 let sseSource = null;
 
@@ -32,7 +33,7 @@ let sirenOsc = null;
 let sirenGain = null;
 let isSirenMuted = false;
 
-// Default Family Contacts with Indian (+91) Country Code
+// Default Family Contacts
 let familyContacts = [
   { id: '1', name: 'Mom (Family)', phone: '+91 9876543210', apiKey: '123456', relation: 'Primary Contact' },
   { id: '2', name: 'Dad (Guardian)', phone: '+91 9876543211', apiKey: '654321', relation: 'Secondary Contact' }
@@ -45,63 +46,46 @@ document.addEventListener('DOMContentLoaded', () => {
   loadContactsFromStorage();
   renderContacts();
   initMultiUserSyncStream();
-  addTelemetryLog('SYS', 'SafetyWatch Dashboard Ready', 'Dual Gateway Active: Auto API + wa.me Fallback Backup');
+  startAutomaticMobileGPS(); // AUTO GPS TRACKING ON LOAD
+  
+  addTelemetryLog('SYS', 'Auto GPS Sync Engine Started', 'Browser automatically tracking & syncing GPS to SafetyWatch');
   
   pollInterval = setInterval(updateCycle, 1000);
 });
 
-// ---------------- DUAL WHATSAPP ALERT ENGINE & TESTER ----------------
-function testWhatsAppApiKey(phone, apiKey, name) {
-  const cleanPhone = phone.replace(/[^0-9+]/g, '');
-  
-  if (!apiKey || apiKey === '123456') {
-    const useFallback = confirm(`⚠️ The API key for ${name} is a placeholder (${apiKey}).\n\nCallMeBot API requires 1-time activation:\n1. Click "⚡ 1-Click Activate CallMeBot Bot" at the top.\n2. Or click OK to test instant WhatsApp wa.me fallback message.`);
-    if (useFallback) {
-      sendWhatsAppToContact(cleanPhone);
-    }
+// ---------------- AUTOMATIC MOBILE GPS TRACKING ENGINE ----------------
+function startAutomaticMobileGPS() {
+  if (!navigator.geolocation) {
+    addTelemetryLog('LOC', 'GPS Warning', 'Browser Geolocation API not supported');
     return;
   }
 
-  addTelemetryLog('SOS', 'Testing CallMeBot WhatsApp API Key...', `Target: ${name} (${cleanPhone})`);
+  // Watch position automatically as user moves
+  autoGpsWatchId = navigator.geolocation.watchPosition(
+    (pos) => {
+      const lat = pos.coords.latitude.toString();
+      const lon = pos.coords.longitude.toString();
+      const acc = Math.round(pos.coords.accuracy).toString();
 
-  fetch('/api/auto-dispatch-sos', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contacts: [{ name, phone: cleanPhone, apiKey }],
-      lat: deviceState.lat,
-      lon: deviceState.lon,
-      accuracy: deviceState.accuracy,
-      mapsUrl: deviceState.mapsUrl,
-      source: 'API Key Verification Test'
-    })
-  })
-  .then(r => r.json())
-  .then(data => {
-    alert(`✅ Automated WhatsApp API Call Sent to ${name} (${cleanPhone})!\n\nIf CallMeBot returns an unactivated key error, the message will also open via wa.me backup automatically.`);
-    addTelemetryLog('SOS', 'WhatsApp API Key Test Triggered', `Status: ${data.status}`);
-  })
-  .catch(err => {
-    alert(`⚠️ API Error: Falling back to direct WhatsApp link.`);
-    sendWhatsAppToContact(cleanPhone);
-  });
+      deviceState.lat = lat;
+      deviceState.lon = lon;
+      deviceState.accuracy = acc;
+
+      updateMapPosition(lat, lon, acc);
+      
+      // Automatically send location to ESP32 hardware when connected!
+      if (currentMode === 'live' || deviceState.online) {
+        sendLocationToESP32(lat, lon, acc);
+      }
+    },
+    (err) => {
+      addTelemetryLog('LOC', 'Auto GPS Trace', err.message);
+    },
+    { enableHighAccuracy: true, timeout: 15000, maximumAge: 3000 }
+  );
 }
 
-function loadSampleWorkingContact() {
-  const sample = {
-    id: Date.now().toString(),
-    name: 'Sample Family Contact',
-    phone: '+91 9876543210',
-    apiKey: '123456',
-    relation: 'Sample Guardian'
-  };
-  familyContacts.push(sample);
-  saveContactsToStorage();
-  renderContacts();
-  addTelemetryLog('SYS', 'Sample Contact Loaded', '+91 9876543210');
-}
-
-// ---------------- WI-FI CONNECT & SETTINGS HANDLERS ----------------
+// ---------------- WI-FI CONNECT & MOBILE DEEP-LINK HANDLERS ----------------
 function showWifiConnectModal() {
   document.getElementById('wifiModal').style.display = 'flex';
   addTelemetryLog('SYS', 'Wi-Fi Connect Dialog Opened', 'SSID: SafetyWatch | Pass: Jevin');
@@ -114,6 +98,7 @@ function closeWifiConnectModal() {
 function triggerAutoWifiSettings() {
   const ua = navigator.userAgent.toLowerCase();
   
+  // Mobile Android Intent launch for Wi-Fi Settings & Wi-Fi scan
   if (ua.includes('android')) {
     window.location.href = 'intent://#Intent;action=android.settings.WIFI_SETTINGS;end';
   } else if (ua.includes('iphone') || ua.includes('ipad')) {
@@ -121,7 +106,7 @@ function triggerAutoWifiSettings() {
   } else if (ua.includes('win')) {
     window.location.href = 'ms-settings:network-wifi';
   } else {
-    alert('Please open your device Wi-Fi settings manually and select "SafetyWatch" with password "Jevin".');
+    alert('Please open your phone Wi-Fi settings, select "SafetyWatch", and enter password "Jevin".');
   }
 
   addTelemetryLog('SYS', 'Opening Wi-Fi Settings', 'Searching for SafetyWatch AP');
@@ -216,17 +201,9 @@ function updateMapPosition(lat, lon, accuracy = 20) {
 }
 
 function requestBrowserLocation() {
-  const btn = document.getElementById('btnGetLoc');
   if (!navigator.geolocation) return alert('Geolocation not supported');
-
-  btn.disabled = true;
-  btn.textContent = 'Locating GPS...';
-
   navigator.geolocation.getCurrentPosition(
     (pos) => {
-      btn.disabled = false;
-      btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="12 8 8 12 12 16 12 8"/></svg> Get GPS Location`;
-      
       const lat = pos.coords.latitude.toString();
       const lon = pos.coords.longitude.toString();
       const acc = Math.round(pos.coords.accuracy).toString();
@@ -236,16 +213,12 @@ function requestBrowserLocation() {
       deviceState.accuracy = acc;
 
       updateMapPosition(lat, lon, acc);
-      addTelemetryLog('LOC', 'GPS Acquired', `Lat: ${lat}, Lon: ${lon}, Acc: ${acc}m`);
+      addTelemetryLog('LOC', 'Manual GPS Refresh', `Lat: ${lat}, Lon: ${lon}`);
 
       if (currentMode === 'live') sendLocationToESP32(lat, lon, acc);
     },
-    (err) => {
-      btn.disabled = false;
-      btn.innerHTML = `Get GPS Location`;
-      alert('Unable to retrieve location: ' + err.message);
-    },
-    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    (err) => alert('Unable to retrieve location: ' + err.message),
+    { enableHighAccuracy: true }
   );
 }
 
@@ -319,6 +292,9 @@ function fetchLiveStatus() {
         deviceState.lon = data.longitude;
         deviceState.accuracy = data.accuracy || '15m';
         updateMapPosition(deviceState.lat, deviceState.lon, deviceState.accuracy);
+      } else {
+        // Auto-push phone GPS to ESP32 when ESP32 has no GPS fix!
+        sendLocationToESP32(deviceState.lat, deviceState.lon, deviceState.accuracy);
       }
     })
     .catch(err => {
@@ -330,7 +306,12 @@ function fetchLiveStatus() {
 }
 
 function sendLocationToESP32(lat, lon, acc) {
-  fetch(`/api/proxy/location?targetIp=${encodeURIComponent(esp32Ip)}&lat=${lat}&lon=${lon}&acc=${acc}`);
+  fetch(`/api/proxy/location?targetIp=${encodeURIComponent(esp32Ip)}&lat=${lat}&lon=${lon}&acc=${acc}`)
+    .then(r => r.json())
+    .then(data => {
+      addTelemetryLog('LOC', 'Auto GPS Synced to Watch', `Lat: ${lat.substring(0,7)}, Lon: ${lon.substring(0,7)}`);
+    })
+    .catch(() => {});
 }
 
 // ---------------- DUAL GATEWAY AUTOMATED WHATSAPP DISPATCH ----------------
@@ -358,7 +339,6 @@ function broadcastAutoWhatsAppEmergency(source = 'Manual Trigger') {
 
   addTelemetryLog('SOS', 'Sending Dual WhatsApp Alerts...', `Contacts: ${familyContacts.length}`);
 
-  // 1. Try CallMeBot Auto API
   fetch('/api/auto-dispatch-sos', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -379,7 +359,6 @@ function broadcastAutoWhatsAppEmergency(source = 'Manual Trigger') {
     addTelemetryLog('SOS', 'Auto API Notice: Triggering wa.me Backup', err.message);
   });
 
-  // 2. Dual Backup: Instant wa.me deep-link trigger for primary contact so message is NEVER blocked!
   if (familyContacts.length > 0) {
     sendWhatsAppToContact(familyContacts[0].phone);
   }

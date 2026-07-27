@@ -44,10 +44,43 @@ document.addEventListener('DOMContentLoaded', () => {
   loadContactsFromStorage();
   renderContacts();
   initMultiUserSyncStream();
-  addTelemetryLog('SYS', 'Multi-User Sync Active', 'Dashboard connected to real-time family network stream');
+  addTelemetryLog('SYS', 'SafetyWatch Ready', 'SSID: SafetyWatch | Password: Jevin');
   
   pollInterval = setInterval(updateCycle, 1000);
 });
+
+// ---------------- WI-FI AUTO-CONNECT MODAL HANDLERS ----------------
+function showWifiConnectModal() {
+  document.getElementById('wifiModal').style.display = 'flex';
+  addTelemetryLog('SYS', 'Wi-Fi Connect Requested', 'SSID: SafetyWatch | Password: Jevin');
+}
+
+function closeWifiConnectModal() {
+  document.getElementById('wifiModal').style.display = 'none';
+}
+
+function triggerAutoWifiSettings() {
+  // Deep-link to open OS/Browser Wi-Fi settings
+  const userAgent = navigator.userAgent.toLowerCase();
+  
+  if (userAgent.includes('win')) {
+    window.location.href = 'ms-settings:network-wifi';
+  } else if (userAgent.includes('android')) {
+    window.location.href = 'intent://#Intent;action=android.settings.WIFI_SETTINGS;end';
+  } else {
+    alert('Please open your phone Wi-Fi settings and select "SafetyWatch" with password "Jevin".');
+  }
+
+  addTelemetryLog('SYS', 'Opened Device Wi-Fi Settings', 'SSID: SafetyWatch');
+}
+
+function copyWifiPassword() {
+  navigator.clipboard.writeText('Jevin').then(() => {
+    alert('Password "Jevin" copied to clipboard!');
+  }).catch(() => {
+    alert('Password: Jevin');
+  });
+}
 
 // ---------------- REAL-TIME MULTI-USER SSE STREAM ----------------
 function initMultiUserSyncStream() {

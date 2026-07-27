@@ -9,10 +9,10 @@ let lastSosState = false;
 let sseSource = null;
 
 let deviceState = {
-  online: true,
-  wifi: 'Connected',
+  online: false, // Default false until ping succeeds
+  wifi: 'Disconnected',
   ip: '192.168.4.1',
-  oled: 'OK',
+  oled: 'Not Detected',
   lat: '12.9716',
   lon: '77.5946',
   accuracy: '12m',
@@ -20,7 +20,7 @@ let deviceState = {
   sosTimestamp: 0,
   uptime: 0,
   battery: 98,
-  pingMs: 14,
+  pingMs: 0,
   mapsUrl: 'https://maps.google.com/?q=12.9716,77.5946'
 };
 
@@ -32,9 +32,10 @@ let sirenOsc = null;
 let sirenGain = null;
 let isSirenMuted = false;
 
+// Default Family Contacts with Indian (+91) Country Code
 let familyContacts = [
-  { id: '1', name: 'Mom (Family)', phone: '+12345678901', apiKey: '123456', relation: 'Primary Contact' },
-  { id: '2', name: 'Dad (Guardian)', phone: '+12345678902', apiKey: '654321', relation: 'Secondary Contact' }
+  { id: '1', name: 'Mom (Family)', phone: '+91 9876543210', apiKey: '123456', relation: 'Primary Contact' },
+  { id: '2', name: 'Dad (Guardian)', phone: '+91 9876543211', apiKey: '654321', relation: 'Secondary Contact' }
 ];
 
 let telemetryLogs = [];
@@ -44,15 +45,15 @@ document.addEventListener('DOMContentLoaded', () => {
   loadContactsFromStorage();
   renderContacts();
   initMultiUserSyncStream();
-  addTelemetryLog('SYS', 'SafetyWatch Ready', 'SSID: SafetyWatch | Password: Jevin');
+  addTelemetryLog('SYS', 'SafetyWatch Dashboard Ready', 'Default Country Code: India (+91) | SSID: SafetyWatch');
   
   pollInterval = setInterval(updateCycle, 1000);
 });
 
-// ---------------- WI-FI AUTO-CONNECT MODAL HANDLERS ----------------
+// ---------------- WI-FI CONNECT & SETTINGS HANDLERS ----------------
 function showWifiConnectModal() {
   document.getElementById('wifiModal').style.display = 'flex';
-  addTelemetryLog('SYS', 'Wi-Fi Connect Requested', 'SSID: SafetyWatch | Password: Jevin');
+  addTelemetryLog('SYS', 'Wi-Fi Connect Dialog Opened', 'SSID: SafetyWatch | Pass: Jevin');
 }
 
 function closeWifiConnectModal() {
@@ -60,18 +61,20 @@ function closeWifiConnectModal() {
 }
 
 function triggerAutoWifiSettings() {
-  // Deep-link to open OS/Browser Wi-Fi settings
-  const userAgent = navigator.userAgent.toLowerCase();
+  const ua = navigator.userAgent.toLowerCase();
   
-  if (userAgent.includes('win')) {
-    window.location.href = 'ms-settings:network-wifi';
-  } else if (userAgent.includes('android')) {
+  // Try OS-specific Wi-Fi settings launcher
+  if (ua.includes('android')) {
     window.location.href = 'intent://#Intent;action=android.settings.WIFI_SETTINGS;end';
+  } else if (ua.includes('iphone') || ua.includes('ipad')) {
+    window.location.href = 'App-Prefs:root=WIFI';
+  } else if (ua.includes('win')) {
+    window.location.href = 'ms-settings:network-wifi';
   } else {
-    alert('Please open your phone Wi-Fi settings and select "SafetyWatch" with password "Jevin".');
+    alert('Please open your device Wi-Fi settings manually and select "SafetyWatch" with password "Jevin".');
   }
 
-  addTelemetryLog('SYS', 'Opened Device Wi-Fi Settings', 'SSID: SafetyWatch');
+  addTelemetryLog('SYS', 'Opening Wi-Fi Settings', 'Searching for SafetyWatch AP');
 }
 
 function copyWifiPassword() {
@@ -219,7 +222,7 @@ function updateCycle() {
 
   if (currentMode === 'simulator') {
     deviceState.online = true;
-    deviceState.wifi = 'Connected';
+    deviceState.wifi = 'Connected (Sim)';
     deviceState.oled = 'OK';
     deviceState.pingMs = Math.floor(Math.random() * 8) + 10;
   } else {
@@ -239,11 +242,14 @@ function fetchLiveStatus() {
   const proxyUrl = `/api/proxy/status?targetIp=${encodeURIComponent(esp32Ip)}`;
 
   fetch(proxyUrl)
-    .then(r => r.json())
+    .then(r => {
+      if (!r.ok) throw new Error('Unreachable');
+      return r.json();
+    })
     .then(data => {
       deviceState.pingMs = Date.now() - startTime;
       deviceState.online = true;
-      deviceState.wifi = data.wifi || 'Connected';
+      deviceState.wifi = 'Connected';
       deviceState.ip = data.ip || esp32Ip;
       deviceState.oled = data.oled || 'OK';
       deviceState.sos = data.sos;
@@ -257,6 +263,9 @@ function fetchLiveStatus() {
     })
     .catch(err => {
       deviceState.online = false;
+      deviceState.wifi = 'Disconnected';
+      deviceState.oled = 'Not Detected';
+      deviceState.pingMs = 0;
     });
 }
 
@@ -277,7 +286,7 @@ function triggerSOSEvent() {
 }
 
 function onInstantSOSDetected(triggerSource) {
-  addTelemetryLog('SOS', '🚨 MULTI-USER AUTOMATED WHATSAPP DISPATCH', `Source: ${triggerSource}`);
+  addTelemetryLog('SOS', '🚨 AUTOMATED WHATSAPP DISPATCH (+91 INDIA)', `Source: ${triggerSource}`);
   triggerAudioSiren(true);
   broadcastAutoWhatsAppEmergency(triggerSource);
 }
@@ -303,7 +312,7 @@ function broadcastAutoWhatsAppEmergency(source = 'Manual Trigger') {
   })
   .then(r => r.json())
   .then(data => {
-    addTelemetryLog('SOS', '✅ Automated WhatsApp Sent (0 Taps)', `Delivered to ${data.dispatchedCount || familyContacts.length} family numbers.`);
+    addTelemetryLog('SOS', '✅ Automated WhatsApp Sent (+91)', `Delivered to ${data.dispatchedCount || familyContacts.length} Indian family numbers.`);
   })
   .catch(err => {
     addTelemetryLog('SOS', 'WhatsApp Auto Dispatch Error', err.message);
@@ -328,19 +337,33 @@ function triggerVibrationTest() {
   alert('Vibration Motor Pulse Triggered (1.5s)!');
 }
 
-// ---------------- CONTACTS MANAGEMENT ----------------
+// ---------------- CONTACTS MANAGEMENT WITH +91 FORMATTING ----------------
 function toggleAddContactForm() {
   const form = document.getElementById('addContactForm');
   form.style.display = form.style.display === 'none' ? 'block' : 'none';
 }
 
+function formatIndianPhone(phone) {
+  let cleaned = phone.replace(/[^0-9+]/g, '');
+  
+  // If user typed 10 digits without +91 (e.g. 9876543210), automatically format as +91 9876543210
+  if (/^[6-9]\d{9}$/.test(cleaned)) {
+    cleaned = '+91' + cleaned;
+  } else if (!cleaned.startsWith('+')) {
+    cleaned = '+91' + cleaned;
+  }
+  return cleaned;
+}
+
 function saveNewContact() {
   const name = document.getElementById('contactName').value.trim();
-  const phone = document.getElementById('contactPhone').value.trim();
+  let phone = document.getElementById('contactPhone').value.trim();
   const apiKey = document.getElementById('contactApiKey').value.trim() || '123456';
   const rel = document.getElementById('contactRelation').value.trim() || 'Family';
 
-  if (!name || !phone) return alert('Please enter both name and phone number.');
+  if (!name || !phone || phone === '+91') return alert('Please enter both contact name and phone number.');
+
+  phone = formatIndianPhone(phone);
 
   const newContact = { id: Date.now().toString(), name, phone, apiKey, relation: rel };
   familyContacts.push(newContact);
@@ -348,12 +371,12 @@ function saveNewContact() {
   renderContacts();
 
   document.getElementById('contactName').value = '';
-  document.getElementById('contactPhone').value = '';
+  document.getElementById('contactPhone').value = '+91 ';
   document.getElementById('contactApiKey').value = '';
   document.getElementById('contactRelation').value = '';
   toggleAddContactForm();
 
-  addTelemetryLog('SYS', 'Contact Added', `${name} (${phone}) - Key: ${apiKey}`);
+  addTelemetryLog('SYS', 'Contact Saved (+91)', `${name} (${phone}) - Key: ${apiKey}`);
 }
 
 function deleteContact(id) {
@@ -385,7 +408,7 @@ function renderContacts() {
     <div class="contact-card">
       <div class="contact-info">
         <h3>${escapeHtml(c.name)} <span class="contact-rel">${escapeHtml(c.relation)}</span></h3>
-        <p>${escapeHtml(c.phone)}</p>
+        <p>🇮🇳 ${escapeHtml(c.phone)}</p>
         <p style="font-size:10px; color:var(--accent-green); margin-top:2px;">🔑 CallMeBot API Key: ${escapeHtml(c.apiKey || '123456')}</p>
       </div>
       <div class="contact-btns">
@@ -460,7 +483,7 @@ function renderUI() {
   document.getElementById('deviceIpText').textContent = `IP: ${deviceState.ip}`;
 
   document.getElementById('wifiStatusText').textContent = deviceState.wifi;
-  document.getElementById('dotWifi').className = `status-dot ${deviceState.wifi === 'Connected' ? 'ok' : 'bad'}`;
+  document.getElementById('dotWifi').className = `status-dot ${deviceState.wifi.includes('Connected') ? 'ok' : 'bad'}`;
 
   document.getElementById('sosStatusText').textContent = deviceState.sos ? 'EMERGENCY' : 'NORMAL';
   document.getElementById('sosStatusText').style.color = deviceState.sos ? 'var(--accent-danger)' : 'var(--text-main)';

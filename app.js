@@ -192,32 +192,85 @@ function startAutomaticMobileGPS() {
   );
 }
 
-// ---------------- SERVER-SIDE SSE STREAM (All ESP32 State) ----------------
-// The server polls ESP32 every 400ms and pushes events here.
-// No direct browser → ESP32 connections needed.
+// -------- SSE STREAM (localhost only) --------
 function initSSEStream() {
-  if (!window.EventSource) {
-    addTelemetryLog('ERR', 'SSE Not Supported', 'Upgrade your browser');
-    return;
-  }
-
+  if (!window.EventSource) return;
   sseSource = new EventSource('/api/stream');
+  sseSource.onopen    = function() { addTelemetryLog('SYS', 'Local SSE Ready', 'ESP32 state from server'); };
+  sseSource.onmessage = function(e) { try { applyServerState(JSON.parse(e.data)); } catch(err){} };
+  sseSource.onerror   = function() { addTelemetryLog('ERR', 'SSE Error', 'Reconnecting'); };
+}
 
-  sseSource.onopen = () => {
-    addTelemetryLog('SYS', '✅ Server SSE Connected', 'Receiving real-time ESP32 state from server...');
-  };
+// -------- MQTT BRIDGE — GitHub Pages Hardware SOS --------
+// FLOW: ESP32 home-WiFi -> HiveMQ free cloud MQTT -> GitHub Pages WSS
+// Works from ANY device ANYWHERE in the world!
+var MQTT_BROKER = 'wss://broker.hivemq.com:8884/mqtt';
+var MQTT_SOS    = 'safetywatch/Jevin/sos';
+var MQTT_LOC    = 'safetywatch/Jevin/location';
+var MQTT_STATUS = 'safetywatch/Jevin/status';
+var mqttClient  = null;
 
-  sseSource.onmessage = (e) => {
+function initMQTTBridge() {
+  if (window.mqtt) { connectMQTT(); return; }
+  var s  = document.createElement('script');
+  s.src  = 'https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js';
+  s.onload  = connectMQTT;
+  s.onerror = function() { addTelemetryLog('ERR', 'MQTT.js Failed', 'Check internet'); };
+  document.head.appendChild(s);
+}
+
+function connectMQTT() {
+  var cid = 'sw_web_' + Math.random().toString(16).slice(2,8);
+  addTelemetryLog('SYS', 'MQTT Connecting', 'HiveMQ Cloud — Hardware SOS from anywhere!');
+  mqttClient = mqtt.connect(MQTT_BROKER, {
+    clientId: cid, clean: true, connectTimeout: 10000,
+    reconnectPeriod: 3000, keepalive: 30
+  });
+
+  mqttClient.on('connect', function() {
+    addTelemetryLog('SYS', 'MQTT Connected!', 'Topic: ' + MQTT_SOS);
+    mqttClient.subscribe([MQTT_SOS, MQTT_LOC, MQTT_STATUS], { qos: 1 });
+    var d = document.getElementById('deviceStatusText');
+    var i = document.getElementById('deviceIpText');
+    var o = document.getElementById('dotDevice');
+    if (d) d.textContent = 'MQTT Bridge Active';
+    if (i) i.textContent = 'Cloud: HiveMQ Broker';
+    if (o) o.className  = 'status-dot ok';
+  });
+
+  mqttClient.on('message', function(topic, msg) {
     try {
-      const payload = JSON.parse(e.data);
-      applyServerState(payload);
-    } catch (err) {}
-  };
+      var p = JSON.parse(msg.toString());
+      if (topic === MQTT_SOS) {
+        if (p.sos === true && !deviceState.sos) {
+          deviceState.sos = true;
+          deviceState.sosTimestamp = Date.now();
+          if (p.lat && p.lat !== 'N/A') {
+            deviceState.lat = p.lat; deviceState.lon = p.lon;
+            updateMapPosition(p.lat, p.lon, 20);
+          }
+          addTelemetryLog('SOS', 'HARDWARE SOS via MQTT!', 'ESP32 Button -> HiveMQ -> GitHub Pages');
+          onInstantSOSDetected('Hardware Watch Button (MQTT Cloud)');
+        } else if (p.sos === false && deviceState.sos) {
+          deviceState.sos = false; triggerAudioSiren(false); renderUI();
+          addTelemetryLog('SYS', 'SOS Reset via MQTT', '');
+        }
+      }
+      if (topic === MQTT_LOC && p.lat) {
+        deviceState.lat = p.lat; deviceState.lon = p.lon;
+        updateMapPosition(p.lat, p.lon, 20);
+        addTelemetryLog('LOC', 'ESP32 GPS via MQTT', 'Lat: ' + p.lat + ' Lon: ' + p.lon);
+      }
+      if (topic === MQTT_STATUS) {
+        deviceState.online = true; deviceState.wifi = 'Online (MQTT)';
+        deviceState.oled = p.oled || 'OK'; deviceState.uptime = p.uptime || 0;
+        renderUI();
+      }
+    } catch(err) {}
+  });
 
-  sseSource.onerror = () => {
-    addTelemetryLog('ERR', 'SSE Stream Error', 'Reconnecting...');
-    // EventSource auto-reconnects
-  };
+  mqttClient.on('error',     function(e) { addTelemetryLog('ERR', 'MQTT Error', e.message); });
+  mqttClient.on('reconnect', function()  { addTelemetryLog('SYS', 'MQTT Reconnecting', ''); });
 }
 
 function applyServerState(payload) {

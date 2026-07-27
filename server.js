@@ -1,158 +1,243 @@
-const express = require('express');
-const http = require('http');
-const https = require('https');
-const os = require('os');
-const path = require('path');
-const url = require('url');
+// ============================================================================
+// SafetyWatch AI — Server-Side ESP32 Polling + SSE Push to All Browsers
+// ============================================================================
+// ARCHITECTURE:
+//   Browser ──────────────> Node.js (localhost:3000) ──HTTP──> ESP32 (192.168.4.1)
+//   Browser <── SSE Push ── Node.js (detects SOS change) 
+//
+// The Node.js server polls ESP32 every 400ms and pushes to browsers via SSE.
+// Browser NEVER contacts ESP32 directly — eliminates all CORS/Mixed Content.
+// ============================================================================
 
-const app = express();
+const express = require('express');
+const http    = require('http');
+const https   = require('https');
+const path    = require('path');
+
+const app  = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
-app.use(express.static(__dirname));
 
-// SSE Real-Time Connected Clients List for Multi-User Live Sync
+// Disable browser caching completely
+app.use((req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  next();
+});
+
+app.use(express.static(path.join(__dirname), { maxAge: 0 }));
+
+// ─── GLOBAL STATE ─────────────────────────────────────────────────────────
 let sseClients = [];
 
-// Shared Global State for Multi-User Live Sync
-let globalState = {
-  sos: false,
-  sosTimestamp: 0,
-  lat: '12.9716',
-  lon: '77.5946',
-  accuracy: '12m',
-  mapsUrl: 'https://maps.google.com/?q=12.9716,77.5946',
-  uptime: 0
+let espState = {
+  online:         false,
+  wifi:           'Disconnected',
+  ip:             '192.168.4.1',
+  oled:           'Not Detected',
+  latitude:       'N/A',
+  longitude:      'N/A',
+  accuracy:       'N/A',
+  sos:            false,
+  sosTimestamp:   0,
+  uptime:         0,
+  lastPollMs:     0
 };
 
-// Real-Time Server-Sent Events (SSE) Stream for Multi-User Broadcast
+const ESP32_IP    = '192.168.4.1';
+const POLL_MS     = 400;       // Poll ESP32 every 400ms from server side
+const TIMEOUT_MS  = 1000;      // HTTP request timeout
+
+// ─── SSE STREAM ENDPOINT ──────────────────────────────────────────────────
 app.get('/api/stream', (req, res) => {
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
-  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('Content-Type',                'text/event-stream');
+  res.setHeader('Cache-Control',               'no-cache');
+  res.setHeader('Connection',                  'keep-alive');
   res.setHeader('Access-Control-Allow-Origin', '*');
+  res.flushHeaders();
 
+  // Send current state immediately on connect
+  res.write(`data: ${JSON.stringify({ type: 'STATE', state: espState })}\n\n`);
   sseClients.push(res);
-  console.log(`👤 New Family Member / Viewer Connected! Total Active Viewers: ${sseClients.length}`);
-
-  // Send initial state to new viewer
-  res.write(`data: ${JSON.stringify({ type: 'INIT', state: globalState })}\n\n`);
+  console.log(`[SSE] Client connected. Total clients: ${sseClients.length}`);
 
   req.on('close', () => {
-    sseClients = sseClients.filter(client => client !== res);
-    console.log(`👤 Viewer disconnected. Remaining Viewers: ${sseClients.length}`);
+    sseClients = sseClients.filter(c => c !== res);
+    console.log(`[SSE] Client disconnected. Total clients: ${sseClients.length}`);
   });
 });
 
-function broadcastToAllViewers(data) {
-  sseClients.forEach(client => {
-    client.write(`data: ${JSON.stringify(data)}\n\n`);
-  });
+function broadcastToAll(payload) {
+  const msg = `data: ${JSON.stringify(payload)}\n\n`;
+  sseClients.forEach(res => res.write(msg));
 }
 
-// Proxy endpoint to pass requests directly to ESP32 device
-app.get('/api/proxy/*', (req, meRes) => {
-  const esp32Ip = req.query.targetIp || '192.168.4.1';
-  const targetPath = req.params[0];
-  const queryStr = url.parse(req.url).query || '';
+// ─── SERVER-SIDE ESP32 POLLING ENGINE ────────────────────────────────────
+// This runs on the SERVER (your PC), which is connected to SafetyWatch Wi-Fi.
+// It can reach http://192.168.4.1 perfectly — no CORS issues!
 
-  const cleanQuery = queryStr.split('&').filter(p => !p.startsWith('targetIp=')).join('&');
-  const forwardUrl = `http://${esp32Ip}/${targetPath}${cleanQuery ? '?' + cleanQuery : ''}`;
+function pollESP32() {
+  const url = `http://${ESP32_IP}/status`;
 
-  http.get(forwardUrl, { timeout: 3000 }, (espRes) => {
+  const req = http.get(url, { timeout: TIMEOUT_MS }, (res) => {
     let body = '';
-    espRes.on('data', chunk => body += chunk);
-    espRes.on('end', () => {
-      meRes.setHeader('Access-Control-Allow-Origin', '*');
-      meRes.setHeader('Content-Type', espRes.headers['content-type'] || 'application/json');
-      meRes.status(espRes.statusCode).send(body);
+    res.on('data', chunk => body += chunk);
+    res.on('end', () => {
+      try {
+        const data = JSON.parse(body);
+
+        const prevSos    = espState.sos;
+        const prevOnline = espState.online;
+
+        espState.online    = true;
+        espState.wifi      = 'Connected';
+        espState.ip        = data.ip       || ESP32_IP;
+        espState.oled      = data.oled     || 'OK';
+        espState.latitude  = data.latitude || 'N/A';
+        espState.longitude = data.longitude|| 'N/A';
+        espState.uptime    = data.uptime   || 0;
+        espState.lastPollMs = Date.now();
+
+        // ── HARDWARE SOS BUTTON DETECTED! ─────────────────────────────────
+        if (data.sos === true && !prevSos) {
+          espState.sos          = true;
+          espState.sosTimestamp = Date.now();
+
+          console.log('\n🚨🚨🚨 HARDWARE SOS DETECTED BY SERVER! 🚨🚨🚨');
+          console.log('  Broadcasting SOS_TRIGGERED to all browsers via SSE...\n');
+
+          broadcastToAll({
+            type:   'SOS_TRIGGERED',
+            state:  espState,
+            source: 'Hardware Watch Button'
+          });
+        } else if (data.sos === false && prevSos) {
+          espState.sos = false;
+          broadcastToAll({ type: 'SOS_RESET', state: espState });
+        }
+
+        // Broadcast online status change
+        if (!prevOnline) {
+          broadcastToAll({ type: 'DEVICE_ONLINE', state: espState });
+          console.log('[ESP32] Device came ONLINE at', ESP32_IP);
+        }
+
+      } catch (e) {
+        markOffline();
+      }
     });
-  }).on('error', (err) => {
-    meRes.setHeader('Access-Control-Allow-Origin', '*');
-    meRes.status(502).json({ error: 'ESP32 Device Unreachable', details: err.message, targetUrl: forwardUrl });
   });
+
+  req.on('error', () => markOffline());
+  req.on('timeout', () => { req.destroy(); markOffline(); });
+}
+
+function markOffline() {
+  if (espState.online) {
+    espState.online = false;
+    espState.wifi   = 'Disconnected';
+    espState.oled   = 'Not Detected';
+    broadcastToAll({ type: 'DEVICE_OFFLINE', state: espState });
+    console.log('[ESP32] Device went OFFLINE');
+  }
+}
+
+// Start polling immediately
+setInterval(pollESP32, POLL_MS);
+console.log(`[POLL] Server polling ESP32 at http://${ESP32_IP}/status every ${POLL_MS}ms`);
+
+// ─── STATE API (used by browser to get current state on load) ────────────
+app.get('/api/state', (req, res) => {
+  res.json(espState);
 });
 
-// 100% AUTOMATED BACKGROUND WHATSAPP DISPATCHER (Option 2 — Zero Taps)
+// ─── LOCATION PUSH (browser → server → ESP32) ───────────────────────────
+app.get('/api/proxy/location', (req, res) => {
+  const lat = req.query.lat || '12.9716';
+  const lon = req.query.lon || '77.5946';
+  const acc = req.query.acc || '10m';
+
+  espState.latitude  = lat;
+  espState.longitude = lon;
+  espState.accuracy  = acc;
+
+  const espUrl = `http://${ESP32_IP}/location?lat=${lat}&lon=${lon}&acc=${acc}`;
+  http.get(espUrl, { timeout: 1000 }).on('error', () => {});
+
+  res.json({ status: 'ok' });
+});
+
+// ─── WEB SOS TRIGGER (browser → server → ESP32) ─────────────────────────
+app.get('/api/proxy/sos', (req, res) => {
+  espState.sos          = true;
+  espState.sosTimestamp = Date.now();
+
+  broadcastToAll({ type: 'SOS_TRIGGERED', state: espState, source: 'Web Button' });
+
+  http.get(`http://${ESP32_IP}/sos`, { timeout: 1000 }).on('error', () => {});
+  res.json({ status: 'sos_activated' });
+});
+
+// ─── RESET (browser → server → ESP32) ───────────────────────────────────
+app.get('/api/proxy/reset', (req, res) => {
+  espState.sos = false;
+  broadcastToAll({ type: 'SOS_RESET', state: espState });
+
+  http.get(`http://${ESP32_IP}/reset`, { timeout: 1000 }).on('error', () => {});
+  res.json({ status: 'reset_ok' });
+});
+
+// ─── CALLMEBOT WHATSAPP AUTO-DISPATCH ───────────────────────────────────
 app.post('/api/auto-dispatch-sos', (req, res) => {
   const { contacts, lat, lon, accuracy, mapsUrl, source } = req.body;
-
-  globalState.sos = true;
-  globalState.sosTimestamp = Date.now();
-  if (lat) globalState.lat = lat;
-  if (lon) globalState.lon = lon;
-  if (mapsUrl) globalState.mapsUrl = mapsUrl;
-
-  // Broadcast SOS state change instantly to all connected family members' phones!
-  broadcastToAllViewers({ type: 'SOS_TRIGGERED', state: globalState, source });
-
-  console.log(`\n🚨 [MULTI-USER AUTOMATED SOS DISPATCH] Source: ${source}`);
-  console.log(`📍 Coordinates: ${lat}, ${lon}`);
-
-  const timestamp = new Date().toLocaleString();
-  const alertMsg = `🚨 EMERGENCY ALERT - SAFETY WATCH 🚨\n\nSOS Activated!\nTime: ${timestamp}\nLocation: ${lat}, ${lon}\nMaps: ${mapsUrl}`;
-
-  const dispatchResults = [];
-  let pendingRequests = contacts.length;
-
   if (!contacts || contacts.length === 0) {
-    return res.json({ status: 'no_contacts', message: 'No contacts configured' });
+    return res.status(400).json({ error: 'No contacts provided' });
   }
+
+  const mapLink   = mapsUrl || `https://maps.google.com/?q=${lat},${lon}`;
+  const timestamp = new Date().toLocaleString();
 
   contacts.forEach(contact => {
-    const cleanPhone = contact.phone.replace(/[^0-9+]/g, '');
-    const apiKey = contact.apiKey || '123456';
+    const cleanPhone = (contact.phone || '').replace(/[^0-9+]/g, '');
+    const apiKey     = contact.apiKey || '123456';
 
-    console.log(`  -> Dispatching automated WhatsApp to ${contact.name} (${cleanPhone})...`);
+    const msg = `🚨 EMERGENCY ALERT - SAFETY WATCH 🚨\n\n` +
+                `HARDWARE SOS BUTTON PRESSED!\n` +
+                `📅 Time: ${timestamp}\n` +
+                `📍 Coords: ${lat}, ${lon}\n` +
+                `🎯 Accuracy: ~${accuracy || '15m'}\n\n` +
+                `🗺 Live Map: ${mapLink}`;
 
-    const callmebotUrl = `https://api.callmebot.com/whatsapp.php?phone=${encodeURIComponent(cleanPhone)}&text=${encodeURIComponent(alertMsg)}&apikey=${encodeURIComponent(apiKey)}`;
+    const callMeBotUrl = `https://api.callmebot.com/whatsapp.php` +
+      `?phone=${encodeURIComponent(cleanPhone)}` +
+      `&text=${encodeURIComponent(msg)}` +
+      `&apikey=${encodeURIComponent(apiKey)}`;
 
-    https.get(callmebotUrl, (apiRes) => {
-      let body = '';
-      apiRes.on('data', chunk => body += chunk);
-      apiRes.on('end', () => {
-        console.log(`     ✅ Automated WhatsApp delivered to ${contact.name}`);
-        dispatchResults.push({ contactName: contact.name, phone: cleanPhone, statusCode: apiRes.statusCode });
-
-        pendingRequests--;
-        if (pendingRequests <= 0) {
-          res.json({ status: 'success', message: 'WhatsApp sent to all contacts.', results: dispatchResults });
-        }
-      });
-    }).on('error', (err) => {
-      console.log(`     ⚠️ WhatsApp Gateway Warning for ${contact.name}: ${err.message}`);
-      dispatchResults.push({ contactName: contact.name, error: err.message });
-      pendingRequests--;
-      if (pendingRequests <= 0) {
-        res.json({ status: 'partial_success', results: dispatchResults });
-      }
+    https.get(callMeBotUrl, r => {
+      console.log(`[WhatsApp] Dispatched to ${cleanPhone} — Status: ${r.statusCode}`);
+    }).on('error', err => {
+      console.log('[WhatsApp] Error:', err.message);
     });
   });
+
+  res.json({ status: 'dispatched', dispatchedCount: contacts.length });
 });
 
-// Get Network Interfaces IPs for local Wi-Fi sharing
-function getLocalNetworkIPs() {
-  const interfaces = os.networkInterfaces();
-  const ips = [];
-  for (const name of Object.keys(interfaces)) {
-    for (const iface of interfaces[name]) {
-      if (iface.family === 'IPv4' && !iface.internal) {
-        ips.push(iface.address);
-      }
-    }
-  }
-  return ips;
-}
-
+// ─── START SERVER ─────────────────────────────────────────────────────────
 app.listen(PORT, '0.0.0.0', () => {
-  const localIps = getLocalNetworkIPs();
-  console.log(`=======================================================`);
-  console.log(` SafetyWatch Multi-User Command Hub Running!`);
-  console.log(` `);
-  console.log(` 🌐 EVERYONE CAN ACCESS THE DASHBOARD AT:`);
-  console.log(`    Local Machine: http://localhost:${PORT}`);
-  localIps.forEach(ip => {
-    console.log(`    Wi-Fi / Mobile: http://${ip}:${PORT}`);
+  const ifaces = require('os').networkInterfaces();
+  let localIp = 'localhost';
+  Object.values(ifaces).flat().forEach(i => {
+    if (i.family === 'IPv4' && !i.internal) localIp = i.address;
   });
-  console.log(`=======================================================`);
+
+  console.log(`\n${'='.repeat(55)}`);
+  console.log(` SafetyWatch AI — Server-Side ESP32 Polling Active!`);
+  console.log(`${'='.repeat(55)}`);
+  console.log(` 🏠 Local:  http://localhost:${PORT}`);
+  console.log(` 📱 Mobile: http://${localIp}:${PORT}`);
+  console.log(` 🔄 Polling ESP32 at http://${ESP32_IP} every ${POLL_MS}ms`);
+  console.log(`${'='.repeat(55)}\n`);
 });

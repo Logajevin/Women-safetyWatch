@@ -434,7 +434,20 @@ function triggerAudioSiren(enable) {
   }
 }
 
-// ── NAVIGATION & UI SWITCHERS ────────────────────────────────────────────
+// ── NAVIGATION & ANCHOR SCROLLING ENGINE ──────────────────────────────────
+function jumpToAnchor(anchorId) {
+  const el = document.getElementById(anchorId);
+  const scrollArea = document.getElementById('mainScrollArea');
+  if (el) {
+    if (scrollArea) {
+      const topPos = el.offsetTop - 10;
+      scrollArea.scrollTo({ top: topPos, behavior: 'smooth' });
+    } else {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }
+}
+
 function switchTab(tabName) {
   document.querySelectorAll('.tab-pane').forEach((el) => el.classList.remove('active'));
   document.querySelectorAll('.nav-tab-btn').forEach((el) => el.classList.remove('active'));
@@ -454,10 +467,17 @@ function switchCategory(catName, btnEl) {
   document.querySelectorAll('.cat-pill').forEach((el) => el.classList.remove('active'));
   if (btnEl) btnEl.classList.add('active');
 
-  if (catName === 'sos') switchTab('home');
-  else if (catName === 'gps') switchTab('map');
-  else if (catName === 'wa') switchTab('contacts');
-  else switchTab('home');
+  if (catName === 'sos') {
+    switchTab('home');
+    setTimeout(() => jumpToAnchor('sec-sos'), 100);
+  } else if (catName === 'gps') {
+    switchTab('map');
+  } else if (catName === 'wa') {
+    switchTab('contacts');
+  } else {
+    switchTab('home');
+    setTimeout(() => jumpToAnchor('sec-overview'), 100);
+  }
 }
 
 function renderUI() {

@@ -372,8 +372,43 @@ body {
   justify-content: space-between;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.07);
   transition: transform 0.2s, box-shadow 0.2s;
+  cursor: pointer;
+  text-decoration: none;
 }
 .hero-card:active { transform: scale(0.98); }
+.hero-card.interactive-anchor:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.15);
+}
+
+.telem-pill {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 16px;
+  padding: 10px 8px;
+  text-align: center;
+  backdrop-filter: blur(12px);
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform 0.15s, background 0.15s;
+}
+.telem-pill:hover  { background: rgba(255, 255, 255, 0.25); transform: translateY(-2px); }
+.telem-pill:active { transform: scale(0.97); }
+
+.cat-pill {
+  padding: 8px 16px;
+  border-radius: var(--radius-pill);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-mid);
+  background: #FFFFFF;
+  border: 1.5px solid #E5E7EB;
+  white-space: nowrap;
+  cursor: pointer;
+  text-decoration: none;
+  transition: all 0.2s;
+}
 
 .hero-card.c-blue   { background: var(--card-blue);   }
 .hero-card.c-gold   { background: var(--card-gold);   }

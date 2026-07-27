@@ -17,7 +17,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
-  <link rel="stylesheet" href="style.css?v=20260728_v11">
+  <link rel="stylesheet" href="style.css?v=20260728_v12">
 </head>
 <body>
 
@@ -91,20 +91,20 @@
         </button>
       </div>
 
-      <!-- TELEMETRY PILLS -->
+      <!-- TELEMETRY PILLS (ANCHORS) -->
       <div class="telemetry-pills-row">
-        <div class="telem-pill">
+        <a href="#sec-overview" class="telem-pill" onclick="switchCategory('all', null)">
           <div class="telem-val"><span class="telem-dot red" id="hdrDevDot"></span><span id="hdrDevice">Offline</span></div>
           <div class="telem-lbl">Watch</div>
-        </div>
-        <div class="telem-pill">
+        </a>
+        <a href="#sec-map" class="telem-pill" onclick="switchTab('map')">
           <div class="telem-val"><span class="telem-dot red" id="hdrGpsDot"></span><span id="hdrGps">Search</span></div>
           <div class="telem-lbl">GPS</div>
-        </div>
-        <div class="telem-pill">
+        </a>
+        <a href="#sec-sos" class="telem-pill" onclick="jumpToAnchor('sec-sos')">
           <div class="telem-val"><span class="telem-dot yellow" id="hdrSosDot"></span><span id="hdrSos">Normal</span></div>
           <div class="telem-lbl">Alarm</div>
-        </div>
+        </a>
       </div>
     </div>
 
@@ -113,12 +113,12 @@
       <path d="M0,0 C150,28 350,28 500,0 L500,28 L0,28 Z"></path>
     </svg>
 
-    <!-- CATEGORY PILLS BAR (Inspired by reference UI) -->
-    <div class="category-tabs-bar">
-      <button class="cat-pill active" onclick="switchCategory('all', this)">All Status</button>
-      <button class="cat-pill" onclick="switchCategory('sos', this)">Hardware SOS</button>
-      <button class="cat-pill" onclick="switchCategory('gps', this)">GPS Tracking</button>
-      <button class="cat-pill" onclick="switchCategory('wa', this)">WhatsApp Gateway</button>
+    <!-- CATEGORY PILLS BAR / TOP MENU (FULLY WORKING ANCHORS) -->
+    <div class="category-tabs-bar" id="topNavPills">
+      <a href="#sec-overview" class="cat-pill active" onclick="switchCategory('all', this)">All Status</a>
+      <a href="#sec-sos" class="cat-pill" onclick="switchCategory('sos', this)">Hardware SOS</a>
+      <a href="#sec-map" class="cat-pill" onclick="switchCategory('gps', this)">GPS Tracking</a>
+      <a href="#sec-contacts" class="cat-pill" onclick="switchCategory('wa', this)">WhatsApp Gateway</a>
     </div>
 
     <!-- LIVE SOS EMERGENCY BANNER -->
@@ -134,23 +134,23 @@
     </div>
 
     <!-- MAIN SCROLL CONTENT AREA -->
-    <div class="content-scroll">
+    <div class="content-scroll" id="mainScrollArea">
 
       <!-- ── TAB 1: HOME (DESIGNER/CATEGORY LAYOUT) ───── -->
       <div id="tab-home" class="tab-pane active">
 
-        <div class="section-title">Device &amp; Safety Overview</div>
+        <div class="section-title" id="sec-overview">Device &amp; Safety Overview</div>
 
-        <!-- HERO RANK CARDS (Pixel-Perfect to reference mockup) -->
+        <!-- HERO RANK CARDS (INTERACTIVE ANCHORS) -->
         <div class="hero-cards-grid">
           
-          <!-- Card 1: Blue -->
-          <div class="hero-card c-blue">
+          <!-- Card 1: Blue (Watch Connection -> Open Wi-Fi Modal Anchor) -->
+          <div class="hero-card c-blue interactive-anchor" onclick="showWifiModal()">
             <div class="hero-left">
               <div class="hero-icon-bubble">📡</div>
               <div>
                 <div class="hero-name" id="deviceStatusText">Watch Disconnected</div>
-                <div class="hero-sub">ESP32-S3 Hardware • 192.168.4.1</div>
+                <div class="hero-sub">Tap to view ESP32 Wi-Fi Setup</div>
               </div>
             </div>
             <div class="rank-bubble">
@@ -159,13 +159,13 @@
             </div>
           </div>
 
-          <!-- Card 2: Gold/Orange -->
-          <div class="hero-card c-gold">
+          <!-- Card 2: Gold/Orange (GPS Signal -> Jump to GPS Map Tab Anchor) -->
+          <div class="hero-card c-gold interactive-anchor" onclick="switchTab('map')">
             <div class="hero-left">
               <div class="hero-icon-bubble">📍</div>
               <div>
                 <div class="hero-name" id="gpsStatusText">GPS Searching…</div>
-                <div class="hero-sub">Mobile Phone Geolocation Signal</div>
+                <div class="hero-sub">Tap to view Live GPS Map</div>
               </div>
             </div>
             <div class="rank-bubble">
@@ -174,13 +174,13 @@
             </div>
           </div>
 
-          <!-- Card 3: Pink -->
-          <div class="hero-card c-pink">
+          <!-- Card 3: Pink (WhatsApp Gateway -> Jump to Contacts Tab Anchor) -->
+          <div class="hero-card c-pink interactive-anchor" onclick="switchTab('contacts')">
             <div class="hero-left">
               <div class="hero-icon-bubble">💬</div>
               <div>
                 <div class="hero-name">WhatsApp Engine</div>
-                <div class="hero-sub">CallMeBot API + wa.me Deep-Link</div>
+                <div class="hero-sub">Tap to manage Family Emergency Contacts</div>
               </div>
             </div>
             <div class="rank-bubble">
@@ -189,8 +189,8 @@
             </div>
           </div>
 
-          <!-- Card 4: Purple -->
-          <div class="hero-card c-purple">
+          <!-- Card 4: Purple (HiveMQ Cloud -> Scroll to OLED Watch Mirror Anchor) -->
+          <div class="hero-card c-purple interactive-anchor" onclick="jumpToAnchor('sec-oled')">
             <div class="hero-left">
               <div class="hero-icon-bubble">☁️</div>
               <div>
@@ -207,7 +207,7 @@
         </div>
 
         <!-- SOS HERO ACTION CARD -->
-        <div class="section-title">Emergency SOS Action</div>
+        <div class="section-title" id="sec-sos">Emergency SOS Action</div>
         <div class="sos-hero-card">
           <button class="sos-trigger-btn" onclick="triggerSOSEvent()">
             <div class="sos-btn-icon-bubble">🆘</div>
@@ -225,7 +225,7 @@
         </div>
 
         <!-- OLED MATRIX MIRROR -->
-        <div class="section-title">OLED Watch Mirror</div>
+        <div class="section-title" id="sec-oled">OLED Watch Mirror</div>
         <div class="oled-container-card">
           <div class="oled-card-top">
             <div class="oled-card-title">SSD1306 • 0.96" Display</div>
@@ -242,7 +242,7 @@ Lon: --</div>
 
       <!-- ── TAB 2: GPS MAP ──────────────────────────── -->
       <div id="tab-map" class="tab-pane">
-        <div class="section-title">Real-Time GPS Tracking</div>
+        <div class="section-title" id="sec-map">Real-Time GPS Tracking</div>
         <div class="map-panel-card">
           <div class="map-header-bar">
             <div class="map-title">Live Geolocation</div>
@@ -283,7 +283,7 @@ Lon: --</div>
 
       <!-- ── TAB 3: CONTACTS ────────────────────────── -->
       <div id="tab-contacts" class="tab-pane">
-        <div class="section-title">Family Emergency Contacts</div>
+        <div class="section-title" id="sec-contacts">Family Emergency Contacts</div>
 
         <a class="callmebot-banner-btn" href="https://wa.me/34644519169?text=I%20allow%20callmebot%20to%20send%20me%20messages" target="_blank" rel="noopener">
           ⚡ 1-Click Activate CallMeBot WhatsApp API
@@ -306,7 +306,7 @@ Lon: --</div>
 
       <!-- ── TAB 4: LOGS ─────────────────────────────── -->
       <div id="tab-logs" class="tab-pane">
-        <div class="section-title">Telemetry &amp; Audit Trail</div>
+        <div class="section-title" id="sec-logs">Telemetry &amp; Audit Trail</div>
         <div class="logs-panel-card">
           <div class="logs-header-row">
             <div class="logs-title">System Audit Log</div>
@@ -320,30 +320,30 @@ Lon: --</div>
 
     <!-- FLOATING BOTTOM NAVIGATION BAR -->
     <nav class="bottom-nav-bar">
-      <button class="nav-tab-btn active" id="nav-home" onclick="switchTab('home')">
+      <a href="#sec-overview" class="nav-tab-btn active" id="nav-home" onclick="switchTab('home')">
         <div class="nav-icon-bubble">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
         </div>
         Home
-      </button>
-      <button class="nav-tab-btn" id="nav-map" onclick="switchTab('map')">
+      </a>
+      <a href="#sec-map" class="nav-tab-btn" id="nav-map" onclick="switchTab('map')">
         <div class="nav-icon-bubble">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
         </div>
         GPS Map
-      </button>
-      <button class="nav-tab-btn" id="nav-contacts" onclick="switchTab('contacts')">
+      </a>
+      <a href="#sec-contacts" class="nav-tab-btn" id="nav-contacts" onclick="switchTab('contacts')">
         <div class="nav-icon-bubble">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 1 0 7.75"/></svg>
         </div>
         Contacts
-      </button>
-      <button class="nav-tab-btn" id="nav-logs" onclick="switchTab('logs')">
+      </a>
+      <a href="#sec-logs" class="nav-tab-btn" id="nav-logs" onclick="switchTab('logs')">
         <div class="nav-icon-bubble">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
         </div>
         Logs
-      </button>
+      </a>
     </nav>
 
   </div><!-- /app -->
@@ -366,6 +366,6 @@ Lon: --</div>
 </div><!-- /mobile-wrapper -->
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-<script src="app.js?v=20260728_v11"></script>
+<script src="app.js?v=20260728_v12"></script>
 </body>
 </html>

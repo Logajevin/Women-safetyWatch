@@ -64,7 +64,7 @@
     </div>
   </header>
 
-  <!-- Improved Wi-Fi Modal -->
+  <!-- Wi-Fi Modal -->
   <div id="wifiModal" class="modal-overlay" style="display:none;">
     <div class="modal-card">
       <div class="modal-header">
@@ -124,6 +124,7 @@
         <div class="kpi-meta" id="deviceIpText">IP: --</div>
       </div>
 
+      <!-- Real Wi-Fi AP Status -->
       <div class="kpi-card">
         <div class="kpi-header">
           <span class="kpi-title">Wi-Fi AP Status</span>
@@ -271,31 +272,38 @@
       </div>
     </div>
 
-    <!-- Contacts section with default +91 Indian country code -->
+    <!-- Contacts section with CallMeBot WhatsApp API Tester -->
     <section class="panel-card contacts-section">
       <div class="panel-header">
         <div>
-          <h2>Family Emergency Contacts (Automatic 0-Tap WhatsApp API)</h2>
-          <p class="panel-sub">Default Indian Country Code (+91) Enabled</p>
+          <h2>Family Emergency Contacts (WhatsApp API Tester Included)</h2>
+          <p class="panel-sub">Test API Key button verifies if CallMeBot key is valid or false!</p>
         </div>
-        <button class="btn-add-contact" onclick="toggleAddContactForm()">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          Add Contact
-        </button>
+        <div style="display:flex; gap:8px;">
+          <button class="btn-sm" onclick="loadSampleWorkingContact()">+ Add Sample Contact</button>
+          <button class="btn-add-contact" onclick="toggleAddContactForm()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Add Contact
+          </button>
+        </div>
       </div>
 
       <div id="addContactForm" class="add-contact-box" style="display:none;">
         <div class="form-grid">
           <input type="text" id="contactName" placeholder="Name (e.g. Mom, Dad)">
-          <!-- Default +91 Indian Country Code -->
           <input type="tel" id="contactPhone" value="+91 " placeholder="+91 9876543210">
           <input type="text" id="contactApiKey" placeholder="CallMeBot API Key (e.g. 123456)">
           <input type="text" id="contactRelation" placeholder="Relation (e.g. Guardian)">
           <button class="btn-save-contact" onclick="saveNewContact()">Save Contact</button>
         </div>
-        <p style="font-size:11px; color:var(--text-muted); margin-top:8px;">
-          💡 <strong>Indian Country Code (+91)</strong> is set by default. If you enter 10 digits (e.g. 9876543210), +91 is added automatically!
-        </p>
+        <div class="api-help-box">
+          <p>📖 <strong>How to get your free CallMeBot WhatsApp API Key (takes 30 sec):</strong></p>
+          <ol style="margin-left:20px; font-size:12px; color:var(--text-main); margin-top:4px;">
+            <li>Save <code>+34 644 51 91 69</code> in your phone contacts as <strong>CallMeBot WhatsApp</strong>.</li>
+            <li>Send a WhatsApp message to it saying: <code>I allow callmebot to send me messages</code></li>
+            <li>CallMeBot will reply instantly with your API key (e.g. <code>123456</code>). Enter it above!</li>
+          </ol>
+        </div>
       </div>
 
       <div class="contacts-grid" id="contactsGrid"></div>

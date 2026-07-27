@@ -9,7 +9,7 @@ let lastSosState = false;
 let sseSource = null;
 
 let deviceState = {
-  online: false, // Default false until ping succeeds
+  online: false,
   wifi: 'Disconnected',
   ip: '192.168.4.1',
   oled: 'Not Detected',
@@ -32,7 +32,7 @@ let sirenOsc = null;
 let sirenGain = null;
 let isSirenMuted = false;
 
-// Default Family Contacts with Indian (+91) Country Code
+// Default Family Contacts
 let familyContacts = [
   { id: '1', name: 'Mom (Family)', phone: '+91 9876543210', apiKey: '123456', relation: 'Primary Contact' },
   { id: '2', name: 'Dad (Guardian)', phone: '+91 9876543211', apiKey: '654321', relation: 'Secondary Contact' }
@@ -45,10 +45,60 @@ document.addEventListener('DOMContentLoaded', () => {
   loadContactsFromStorage();
   renderContacts();
   initMultiUserSyncStream();
-  addTelemetryLog('SYS', 'SafetyWatch Dashboard Ready', 'Default Country Code: India (+91) | SSID: SafetyWatch');
+  addTelemetryLog('SYS', 'SafetyWatch Dashboard Ready', 'Default Country Code: India (+91) | CallMeBot WhatsApp API Active');
   
   pollInterval = setInterval(updateCycle, 1000);
 });
+
+// ---------------- WHATSAPP API TESTER & SAMPLE CONTACT ----------------
+function testWhatsAppApiKey(phone, apiKey, name) {
+  if (!apiKey || apiKey === '123456') {
+    alert(`⚠️ Warning: The CallMeBot API key for ${name} is a placeholder (${apiKey}).\n\nTo get your real free API key:\n1. Send WhatsApp message "I allow callmebot to send me messages" to +34 644 51 91 69.\n2. Enter the received API key here!`);
+    addTelemetryLog('SOS', 'WhatsApp API Key Check', `${name}: Key is placeholder (${apiKey})`);
+    return;
+  }
+
+  const cleanPhone = phone.replace(/[^0-9+]/g, '');
+  const testMsg = encodeURIComponent('🧪 SafetyWatch API Key Test Successful!');
+  
+  addTelemetryLog('SOS', 'Testing CallMeBot WhatsApp API Key...', `Target: ${name} (${cleanPhone})`);
+
+  fetch('/api/auto-dispatch-sos', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contacts: [{ name, phone: cleanPhone, apiKey }],
+      lat: deviceState.lat,
+      lon: deviceState.lon,
+      accuracy: deviceState.accuracy,
+      mapsUrl: deviceState.mapsUrl,
+      source: 'API Key Verification Test'
+    })
+  })
+  .then(r => r.json())
+  .then(data => {
+    alert(`✅ WhatsApp API Test Message Triggered for ${name} (${cleanPhone})!\n\nIf the API key is valid, the test message will arrive in WhatsApp in a few seconds.`);
+    addTelemetryLog('SOS', 'WhatsApp API Key Test Triggered', `Status Code: ${data.status}`);
+  })
+  .catch(err => {
+    alert(`❌ WhatsApp API Test Failed: ${err.message}`);
+    addTelemetryLog('SOS', 'WhatsApp API Test Error', err.message);
+  });
+}
+
+function loadSampleWorkingContact() {
+  const sample = {
+    id: Date.now().toString(),
+    name: 'Sample Family Contact',
+    phone: '+91 9876543210',
+    apiKey: '123456',
+    relation: 'Sample Guardian'
+  };
+  familyContacts.push(sample);
+  saveContactsToStorage();
+  renderContacts();
+  addTelemetryLog('SYS', 'Sample Contact Loaded', '+91 9876543210');
+}
 
 // ---------------- WI-FI CONNECT & SETTINGS HANDLERS ----------------
 function showWifiConnectModal() {
@@ -63,7 +113,6 @@ function closeWifiConnectModal() {
 function triggerAutoWifiSettings() {
   const ua = navigator.userAgent.toLowerCase();
   
-  // Try OS-specific Wi-Fi settings launcher
   if (ua.includes('android')) {
     window.location.href = 'intent://#Intent;action=android.settings.WIFI_SETTINGS;end';
   } else if (ua.includes('iphone') || ua.includes('ipad')) {
@@ -204,7 +253,17 @@ function setMode(mode) {
   document.getElementById('modeSimBtn').classList.toggle('active', mode === 'simulator');
   document.getElementById('modeLiveBtn').classList.toggle('active', mode === 'live');
   document.getElementById('ipBox').style.display = mode === 'live' ? 'flex' : 'none';
+
+  if (mode === 'live') {
+    deviceState.online = false;
+    deviceState.wifi = 'Searching...';
+  } else {
+    deviceState.online = true;
+    deviceState.wifi = 'Simulated';
+  }
+
   addTelemetryLog('SYS', 'Mode Switch', `Mode: ${mode.toUpperCase()}`);
+  renderUI();
 }
 
 function connectLiveDevice() {
@@ -222,7 +281,7 @@ function updateCycle() {
 
   if (currentMode === 'simulator') {
     deviceState.online = true;
-    deviceState.wifi = 'Connected (Sim)';
+    deviceState.wifi = 'Simulated AP';
     deviceState.oled = 'OK';
     deviceState.pingMs = Math.floor(Math.random() * 8) + 10;
   } else {
@@ -243,7 +302,7 @@ function fetchLiveStatus() {
 
   fetch(proxyUrl)
     .then(r => {
-      if (!r.ok) throw new Error('Unreachable');
+      if (!r.ok) throw new Error('ESP32 Unreachable');
       return r.json();
     })
     .then(data => {
@@ -345,8 +404,6 @@ function toggleAddContactForm() {
 
 function formatIndianPhone(phone) {
   let cleaned = phone.replace(/[^0-9+]/g, '');
-  
-  // If user typed 10 digits without +91 (e.g. 9876543210), automatically format as +91 9876543210
   if (/^[6-9]\d{9}$/.test(cleaned)) {
     cleaned = '+91' + cleaned;
   } else if (!cleaned.startsWith('+')) {
@@ -410,6 +467,9 @@ function renderContacts() {
         <h3>${escapeHtml(c.name)} <span class="contact-rel">${escapeHtml(c.relation)}</span></h3>
         <p>🇮🇳 ${escapeHtml(c.phone)}</p>
         <p style="font-size:10px; color:var(--accent-green); margin-top:2px;">🔑 CallMeBot API Key: ${escapeHtml(c.apiKey || '123456')}</p>
+        <button class="btn-test-api" onclick="testWhatsAppApiKey('${escapeHtml(c.phone)}', '${escapeHtml(c.apiKey)}', '${escapeHtml(c.name)}')">
+          🧪 Test WhatsApp API
+        </button>
       </div>
       <div class="contact-btns">
         <button class="btn-del-contact" title="Delete Contact" onclick="deleteContact('${c.id}')">
@@ -483,7 +543,7 @@ function renderUI() {
   document.getElementById('deviceIpText').textContent = `IP: ${deviceState.ip}`;
 
   document.getElementById('wifiStatusText').textContent = deviceState.wifi;
-  document.getElementById('dotWifi').className = `status-dot ${deviceState.wifi.includes('Connected') ? 'ok' : 'bad'}`;
+  document.getElementById('dotWifi').className = `status-dot ${deviceState.online ? 'ok' : 'bad'}`;
 
   document.getElementById('sosStatusText').textContent = deviceState.sos ? 'EMERGENCY' : 'NORMAL';
   document.getElementById('sosStatusText').style.color = deviceState.sos ? 'var(--accent-danger)' : 'var(--text-main)';

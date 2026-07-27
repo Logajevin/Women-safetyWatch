@@ -434,7 +434,7 @@ function triggerAudioSiren(enable) {
   }
 }
 
-// ── NAVIGATION & ANCHOR SCROLLING ENGINE ──────────────────────────────────
+// ── NAVIGATION & TAB SWITCHING ENGINE ────────────────────────────────────
 function jumpToAnchor(anchorId) {
   const el = document.getElementById(anchorId);
   const scrollArea = document.getElementById('mainScrollArea');
@@ -449,15 +449,31 @@ function jumpToAnchor(anchorId) {
 }
 
 function switchTab(tabName) {
+  // 1. Hide all tab panes, show target tab pane
   document.querySelectorAll('.tab-pane').forEach((el) => el.classList.remove('active'));
+  const targetTab = document.getElementById(`tab-${tabName}`);
+  if (targetTab) targetTab.classList.add('active');
+
+  // 2. Update bottom nav buttons
   document.querySelectorAll('.nav-tab-btn').forEach((el) => el.classList.remove('active'));
+  const targetNav = document.getElementById(`nav-${tabName}`);
+  if (targetNav) targetNav.classList.add('active');
 
-  const tab = document.getElementById(`tab-${tabName}`);
-  const nav = document.getElementById(`nav-${tabName}`);
+  // 3. Update top category pills to stay in sync
+  document.querySelectorAll('.cat-pill').forEach((el) => el.classList.remove('active'));
+  let targetPillIndex = 0; // 'all' by default
+  if (tabName === 'map') targetPillIndex = 2;
+  else if (tabName === 'contacts') targetPillIndex = 3;
+  else if (tabName === 'logs') targetPillIndex = 0;
 
-  if (tab) tab.classList.add('active');
-  if (nav) nav.classList.add('active');
+  const catPills = document.querySelectorAll('.cat-pill');
+  if (catPills[targetPillIndex]) catPills[targetPillIndex].classList.add('active');
 
+  // 4. Scroll main scroll area to top on tab change
+  const scrollArea = document.getElementById('mainScrollArea');
+  if (scrollArea) scrollArea.scrollTo({ top: 0, behavior: 'smooth' });
+
+  // 5. Invalidate Leaflet map size if switching to map tab
   if (tabName === 'map' && map) {
     setTimeout(() => map.invalidateSize(), 200);
   }

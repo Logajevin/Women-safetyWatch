@@ -2,556 +2,27 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="theme-color" content="#7C3AED">
-  <meta name="description" content="SafetyWatch AI — Women's Safety Dashboard with SOS Alerts and GPS Tracking">
+  <meta name="description" content="SafetyWatch AI — Women's Safety Mobile Dashboard">
   <title>SafetyWatch AI</title>
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
-
-  <style>
-    /* ═══════════════════════════════════════════
-       DESIGN TOKENS
-    ═══════════════════════════════════════════ */
-    :root {
-      --purple-1: #7C3AED;
-      --purple-2: #9D5CF6;
-      --purple-3: #C084FC;
-      --purple-light: #EDE9FE;
-      --pink:   #EC4899;
-      --orange: #F97316;
-      --teal:   #14B8A6;
-      --green:  #22C55E;
-      --blue:   #3B82F6;
-      --yellow: #EAB308;
-      --red:    #EF4444;
-      --bg:     #F5F3FF;
-      --card:   #FFFFFF;
-      --text-1: #1E1B4B;
-      --text-2: #6B7280;
-      --radius: 20px;
-      --shadow: 0 4px 24px rgba(124,58,237,0.12);
-    }
-
-    * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-
-    body {
-      font-family: 'Outfit', sans-serif;
-      background: var(--bg);
-      color: var(--text-1);
-      min-height: 100dvh;
-      overflow-x: hidden;
-    }
-
-    /* ═══════════════════════════════════════════
-       PERMISSION SPLASH
-    ═══════════════════════════════════════════ */
-    #splash {
-      position: fixed; inset: 0; z-index: 9999;
-      background: linear-gradient(160deg, #5B21B6 0%, #7C3AED 45%, #A855F7 100%);
-      display: flex; flex-direction: column;
-      align-items: center; justify-content: center;
-      padding: 32px 24px;
-      animation: fadeIn 0.5s ease;
-    }
-    #splash.exit { animation: splashOut 0.6s ease forwards; }
-    @keyframes fadeIn    { from { opacity:0; transform:scale(0.97); } to { opacity:1; transform:scale(1); } }
-    @keyframes splashOut { to   { opacity:0; transform:scale(1.04); pointer-events:none; } }
-
-    .splash-logo {
-      width: 90px; height: 90px;
-      background: rgba(255,255,255,0.15);
-      border-radius: 28px;
-      display: flex; align-items: center; justify-content: center;
-      margin-bottom: 20px;
-      backdrop-filter: blur(12px);
-      border: 1.5px solid rgba(255,255,255,0.3);
-      animation: pulse 2s ease-in-out infinite;
-    }
-    @keyframes pulse {
-      0%,100% { box-shadow: 0 0 0 0 rgba(255,255,255,0.3); }
-      50%      { box-shadow: 0 0 0 18px rgba(255,255,255,0); }
-    }
-
-    .splash-title { color:#fff; font-size:30px; font-weight:800; letter-spacing:-0.5px; }
-    .splash-sub   { color:rgba(255,255,255,0.7); font-size:14px; margin:6px 0 32px; text-align:center; }
-
-    .perm-card {
-      background: rgba(255,255,255,0.12);
-      border: 1px solid rgba(255,255,255,0.2);
-      backdrop-filter: blur(20px);
-      border-radius: 20px;
-      padding: 20px;
-      width: 100%; max-width: 360px;
-      margin-bottom: 20px;
-    }
-
-    .perm-row {
-      display: flex; align-items: center; gap: 14px;
-      padding: 12px 0;
-      border-bottom: 1px solid rgba(255,255,255,0.1);
-    }
-    .perm-row:last-child { border-bottom: none; padding-bottom: 0; }
-    .perm-row:first-child { padding-top: 0; }
-
-    .perm-icon-box {
-      width: 42px; height: 42px; border-radius: 12px;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 20px; flex-shrink: 0;
-    }
-    .perm-icon-box.loc  { background: rgba(255,255,255,0.15); }
-    .perm-icon-box.noti { background: rgba(255,220,80,0.2); }
-    .perm-icon-box.vib  { background: rgba(100,255,180,0.15); }
-
-    .perm-info { flex: 1; }
-    .perm-info strong { color: #fff; font-size: 14px; font-weight: 600; display: block; }
-    .perm-info span   { color: rgba(255,255,255,0.55); font-size: 12px; }
-
-    .perm-badge {
-      font-size: 11px; font-weight: 700; padding: 4px 10px;
-      border-radius: 99px; white-space: nowrap;
-    }
-    .perm-badge.wait    { background: rgba(255,255,255,0.15); color: rgba(255,255,255,0.6); }
-    .perm-badge.granted { background: rgba(34,197,94,0.25);   color: #4ADE80; }
-    .perm-badge.denied  { background: rgba(239,68,68,0.25);   color: #FCA5A5; }
-
-    #btnGrant {
-      width: 100%; max-width: 360px;
-      padding: 18px;
-      background: #fff;
-      color: var(--purple-1);
-      border: none; border-radius: 16px;
-      font-family: 'Outfit', sans-serif;
-      font-size: 17px; font-weight: 800;
-      cursor: pointer;
-      box-shadow: 0 8px 32px rgba(0,0,0,0.2);
-      transition: transform 0.15s, box-shadow 0.15s;
-      letter-spacing: -0.2px;
-    }
-    #btnGrant:hover  { transform: translateY(-2px); box-shadow: 0 12px 40px rgba(0,0,0,0.25); }
-    #btnGrant:active { transform: scale(0.98); }
-    #btnGrant:disabled { opacity: 0.7; cursor: not-allowed; }
-
-    /* ═══════════════════════════════════════════
-       MAIN APP (hidden until splash exits)
-    ═══════════════════════════════════════════ */
-    #app { display: none; flex-direction: column; min-height: 100dvh; }
-    #app.show { display: flex; }
-
-    /* ── HEADER ─────────────────────────────────── */
-    .app-header {
-      background: linear-gradient(135deg, #5B21B6 0%, #7C3AED 50%, #A855F7 100%);
-      padding: 52px 20px 28px;
-      position: relative; overflow: hidden;
-    }
-    .app-header::before {
-      content: ''; position: absolute;
-      width: 200px; height: 200px; border-radius: 50%;
-      background: rgba(255,255,255,0.06);
-      top: -60px; right: -40px;
-    }
-    .app-header::after {
-      content: ''; position: absolute;
-      width: 120px; height: 120px; border-radius: 50%;
-      background: rgba(255,255,255,0.04);
-      bottom: -30px; left: 30px;
-    }
-
-    .header-row { display: flex; align-items: center; justify-content: space-between; position: relative; z-index: 1; }
-    .header-brand { display: flex; align-items: center; gap: 12px; }
-    .brand-icon {
-      width: 44px; height: 44px; background: rgba(255,255,255,0.2);
-      border-radius: 14px; display: flex; align-items: center; justify-content: center;
-      border: 1.5px solid rgba(255,255,255,0.3);
-    }
-    .brand-name  { color: #fff; font-size: 20px; font-weight: 800; letter-spacing: -0.3px; }
-    .brand-sub   { color: rgba(255,255,255,0.6); font-size: 12px; font-weight: 400; margin-top: 1px; }
-
-    .header-sound-btn {
-      width: 40px; height: 40px; border-radius: 12px;
-      background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.25);
-      cursor: pointer; display: flex; align-items: center; justify-content: center;
-      color: #fff; transition: background 0.2s;
-    }
-    .header-sound-btn:hover { background: rgba(255,255,255,0.25); }
-
-    /* Stats bar inside header */
-    .stats-bar {
-      display: flex; gap: 0; margin-top: 22px;
-      background: rgba(255,255,255,0.12); border-radius: 16px;
-      border: 1px solid rgba(255,255,255,0.18);
-      overflow: hidden; position: relative; z-index: 1;
-    }
-    .stat-item {
-      flex: 1; text-align: center; padding: 14px 8px;
-      border-right: 1px solid rgba(255,255,255,0.1);
-    }
-    .stat-item:last-child { border-right: none; }
-    .stat-val  { color: #fff; font-size: 20px; font-weight: 800; }
-    .stat-lbl  { color: rgba(255,255,255,0.6); font-size: 11px; font-weight: 500; margin-top: 2px; }
-    .stat-dot  { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 4px; vertical-align: middle; }
-    .dot-on    { background: #4ADE80; box-shadow: 0 0 6px #4ADE80; }
-    .dot-off   { background: #F87171; }
-    .dot-warn  { background: #FBBF24; }
-
-    /* ── SOS EMERGENCY BANNER ───────────────────── */
-    .sos-banner {
-      display: none;
-      background: linear-gradient(135deg, #DC2626, #EF4444);
-      padding: 14px 20px;
-      animation: bannerSlide 0.4s ease;
-    }
-    .sos-banner.show { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-    @keyframes bannerSlide { from { transform: translateY(-100%); opacity:0; } to { transform: translateY(0); opacity:1; } }
-    .sos-banner-left { display: flex; align-items: center; gap: 10px; }
-    .sos-siren { font-size: 22px; animation: sirenBounce 0.5s ease-in-out infinite alternate; }
-    @keyframes sirenBounce { from { transform: scale(1); } to { transform: scale(1.2); } }
-    .sos-banner-title { color: #fff; font-size: 14px; font-weight: 700; }
-    .sos-banner-sub   { color: rgba(255,255,255,0.8); font-size: 11px; margin-top: 2px; }
-    .sos-clear-btn {
-      background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3);
-      color: #fff; border-radius: 10px; padding: 6px 14px;
-      font-family: 'Outfit', sans-serif; font-size: 12px; font-weight: 700;
-      cursor: pointer; white-space: nowrap;
-    }
-
-    /* ── MAIN SCROLL AREA ───────────────────────── */
-    .main-scroll { flex: 1; overflow-y: auto; padding: 16px 16px 100px; }
-    .main-scroll::-webkit-scrollbar { display: none; }
-
-    /* ── SECTION LABEL ──────────────────────────── */
-    .section-label { font-size: 16px; font-weight: 700; color: var(--text-1); margin: 20px 0 10px; }
-
-    /* ── QUICK STATUS CARDS ─────────────────────── */
-    .status-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-
-    .status-card {
-      background: var(--card); border-radius: 18px;
-      padding: 16px; box-shadow: var(--shadow);
-      border: 1.5px solid transparent;
-      transition: transform 0.2s;
-    }
-    .status-card:active { transform: scale(0.97); }
-    .status-card.purple-border { border-color: var(--purple-light); }
-
-    .sc-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
-    .sc-icon {
-      width: 36px; height: 36px; border-radius: 10px;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 18px;
-    }
-    .sc-icon.purple { background: var(--purple-light); }
-    .sc-icon.green  { background: #DCFCE7; }
-    .sc-icon.orange { background: #FFF7ED; }
-    .sc-icon.blue   { background: #EFF6FF; }
-    .sc-icon.pink   { background: #FDF2F8; }
-    .sc-icon.teal   { background: #F0FDFA; }
-
-    .sc-dot { width: 8px; height: 8px; border-radius: 50%; }
-    .sc-dot.ok   { background: #22C55E; box-shadow: 0 0 6px #22C55E66; }
-    .sc-dot.bad  { background: #EF4444; }
-    .sc-dot.warn { background: #F59E0B; }
-
-    .sc-val  { font-size: 17px; font-weight: 800; color: var(--text-1); }
-    .sc-lbl  { font-size: 11px; color: var(--text-2); font-weight: 500; margin-top: 2px; }
-
-    /* ── BIG SOS BUTTON ─────────────────────────── */
-    .sos-section { margin: 4px 0; }
-    .big-sos-wrap {
-      background: linear-gradient(135deg, #DC2626, #EF4444, #F97316);
-      border-radius: 24px; padding: 4px;
-      box-shadow: 0 8px 32px rgba(239,68,68,0.4);
-    }
-    .big-sos-btn {
-      width: 100%; padding: 22px;
-      background: linear-gradient(135deg, #EF4444, #DC2626);
-      border: none; border-radius: 20px;
-      display: flex; align-items: center; justify-content: center; gap: 14px;
-      cursor: pointer; transition: transform 0.15s;
-      font-family: 'Outfit', sans-serif;
-    }
-    .big-sos-btn:active { transform: scale(0.97); }
-    .sos-btn-icon {
-      width: 52px; height: 52px; border-radius: 50%;
-      background: rgba(255,255,255,0.2); border: 2px solid rgba(255,255,255,0.4);
-      display: flex; align-items: center; justify-content: center;
-      font-size: 24px; animation: sosPulse 2s ease-in-out infinite;
-    }
-    @keyframes sosPulse {
-      0%,100% { box-shadow: 0 0 0 0 rgba(255,255,255,0.4); }
-      50%      { box-shadow: 0 0 0 12px rgba(255,255,255,0); }
-    }
-    .sos-btn-text  { color: #fff; font-size: 22px; font-weight: 900; letter-spacing: 2px; }
-    .sos-btn-sub   { color: rgba(255,255,255,0.75); font-size: 11px; font-weight: 500; margin-top: 3px; letter-spacing: 0.5px; }
-
-    .sos-sub-btns { display: flex; gap: 10px; margin-top: 10px; }
-    .sos-sub-btn {
-      flex: 1; padding: 12px;
-      background: var(--card); border-radius: 14px;
-      border: 1.5px solid #E5E7EB;
-      font-family: 'Outfit', sans-serif;
-      font-size: 13px; font-weight: 600; color: var(--text-2);
-      cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px;
-      transition: all 0.2s;
-    }
-    .sos-sub-btn:active { transform: scale(0.97); }
-    .sos-sub-btn.danger { color: var(--red); border-color: #FCA5A5; }
-
-    /* ── GPS MAP CARD ───────────────────────────── */
-    .map-card {
-      background: var(--card); border-radius: 22px;
-      overflow: hidden; box-shadow: var(--shadow);
-    }
-    .map-card-header {
-      padding: 16px 16px 12px;
-      display: flex; align-items: center; justify-content: space-between;
-    }
-    .map-card-title { font-size: 15px; font-weight: 700; }
-    .gps-pill {
-      display: flex; align-items: center; gap: 6px;
-      background: #DCFCE7; color: #16A34A;
-      border-radius: 99px; padding: 5px 12px;
-      font-size: 12px; font-weight: 600;
-    }
-    .gps-pill.off { background: #FEE2E2; color: #DC2626; }
-    .gps-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; animation: gpsBlink 1.2s ease infinite; }
-    @keyframes gpsBlink { 0%,100%{opacity:1;} 50%{opacity:0.3;} }
-
-    #map { height: 180px; }
-
-    .coords-row {
-      padding: 12px 16px;
-      display: grid; grid-template-columns: 1fr 1fr;
-      gap: 8px; border-top: 1px solid #F3F4F6;
-    }
-    .coord-chip { background: #F9FAFB; border-radius: 10px; padding: 8px 12px; }
-    .coord-chip-lbl { font-size: 10px; color: var(--text-2); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
-    .coord-chip-val { font-size: 13px; font-weight: 700; color: var(--text-1); margin-top: 2px; font-family: monospace; }
-
-    .map-actions { display: flex; gap: 8px; padding: 0 16px 16px; }
-    .map-btn {
-      flex: 1; padding: 10px;
-      border: none; border-radius: 12px;
-      font-family: 'Outfit', sans-serif;
-      font-size: 13px; font-weight: 600;
-      cursor: pointer; transition: all 0.2s;
-      display: flex; align-items: center; justify-content: center; gap: 6px;
-    }
-    .map-btn.primary { background: var(--purple-1); color: #fff; }
-    .map-btn.secondary { background: var(--purple-light); color: var(--purple-1); text-decoration: none; }
-
-    /* ── CONTACTS ───────────────────────────────── */
-    .contact-list { display: flex; flex-direction: column; gap: 10px; }
-
-    .contact-card {
-      background: var(--card); border-radius: 18px;
-      padding: 16px; display: flex; align-items: center; gap: 14px;
-      box-shadow: var(--shadow); transition: transform 0.2s;
-    }
-    .contact-card:active { transform: scale(0.98); }
-
-    .contact-avatar {
-      width: 48px; height: 48px; border-radius: 50%;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 20px; font-weight: 800; color: #fff;
-      flex-shrink: 0; font-family: 'Outfit', sans-serif;
-    }
-    .av-purple { background: linear-gradient(135deg, #7C3AED, #A855F7); }
-    .av-orange { background: linear-gradient(135deg, #F97316, #FB923C); }
-    .av-pink   { background: linear-gradient(135deg, #EC4899, #F472B6); }
-    .av-teal   { background: linear-gradient(135deg, #14B8A6, #2DD4BF); }
-    .av-blue   { background: linear-gradient(135deg, #3B82F6, #60A5FA); }
-
-    .contact-info { flex: 1; min-width: 0; }
-    .contact-name { font-size: 15px; font-weight: 700; color: var(--text-1); }
-    .contact-phone { font-size: 12px; color: var(--text-2); margin-top: 2px; font-family: monospace; }
-    .contact-key { font-size: 11px; color: var(--purple-1); margin-top: 3px; font-weight: 600; }
-
-    .contact-actions { display: flex; gap: 6px; }
-    .contact-test-btn {
-      background: #DCFCE7; color: #16A34A; border: none;
-      border-radius: 10px; padding: 7px 12px;
-      font-family: 'Outfit', sans-serif; font-size: 12px; font-weight: 600;
-      cursor: pointer;
-    }
-    .contact-del-btn {
-      background: #FEE2E2; color: #DC2626; border: none;
-      border-radius: 10px; padding: 7px 10px;
-      font-family: 'Outfit', sans-serif; font-size: 14px;
-      cursor: pointer;
-    }
-
-    /* ── ADD CONTACT ────────────────────────────── */
-    .add-contact-card {
-      background: var(--purple-light); border-radius: 18px;
-      border: 2px dashed var(--purple-3);
-      padding: 16px; text-align: center;
-      cursor: pointer; transition: all 0.2s;
-    }
-    .add-contact-card:hover { background: var(--purple-1); }
-    .add-contact-card:hover .add-lbl { color: #fff; }
-
-    .add-lbl { color: var(--purple-1); font-size: 14px; font-weight: 600; }
-    .add-form { display: none; flex-direction: column; gap: 10px; margin-top: 14px; }
-    .add-form.show { display: flex; }
-
-    .form-input {
-      background: #fff; border: 1.5px solid #E5E7EB;
-      border-radius: 12px; padding: 12px 14px;
-      font-family: 'Outfit', sans-serif; font-size: 14px;
-      color: var(--text-1); outline: none; width: 100%;
-    }
-    .form-input:focus { border-color: var(--purple-1); }
-
-    .save-btn {
-      background: var(--purple-1); color: #fff;
-      border: none; border-radius: 12px; padding: 14px;
-      font-family: 'Outfit', sans-serif; font-size: 15px; font-weight: 700;
-      cursor: pointer; width: 100%;
-    }
-    .callmebot-link {
-      display: block; text-align: center;
-      background: #DCFCE7; color: #16A34A;
-      border-radius: 10px; padding: 10px;
-      font-size: 13px; font-weight: 600; text-decoration: none;
-      margin-top: 4px;
-    }
-
-    /* ── MQTT STATUS CARD ───────────────────────── */
-    .mqtt-card {
-      background: linear-gradient(135deg, #1E1B4B, #312E81);
-      border-radius: 20px; padding: 18px;
-      display: flex; align-items: center; gap: 14px;
-    }
-    .mqtt-icon {
-      width: 48px; height: 48px; border-radius: 14px;
-      background: rgba(255,255,255,0.1);
-      display: flex; align-items: center; justify-content: center;
-      font-size: 22px; flex-shrink: 0;
-    }
-    .mqtt-info { flex: 1; }
-    .mqtt-title { color: #fff; font-size: 15px; font-weight: 700; }
-    .mqtt-sub   { color: rgba(255,255,255,0.55); font-size: 12px; margin-top: 3px; }
-    .mqtt-status-pill {
-      padding: 6px 12px; border-radius: 99px;
-      font-size: 12px; font-weight: 700;
-    }
-    .mqtt-status-pill.connecting { background: rgba(251,191,36,0.2); color: #FCD34D; }
-    .mqtt-status-pill.connected  { background: rgba(34,197,94,0.2);  color: #4ADE80; }
-    .mqtt-status-pill.error      { background: rgba(239,68,68,0.2);  color: #FCA5A5; }
-
-    /* ── OLED MIRROR ────────────────────────────── */
-    .oled-card {
-      background: var(--card); border-radius: 20px;
-      padding: 16px; box-shadow: var(--shadow);
-    }
-    .oled-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
-    .oled-card-title  { font-size: 15px; font-weight: 700; }
-    .oled-badge       { background: #1E1B4B; color: #818CF8; border-radius: 99px; padding: 4px 10px; font-size: 10px; font-weight: 600; }
-
-    .oled-screen {
-      background: #000; border-radius: 12px;
-      padding: 14px; font-family: monospace;
-      font-size: 11px; line-height: 1.6; color: #00ff88;
-      min-height: 90px; border: 2px solid #1F2937;
-    }
-
-    /* ── LOG TABLE ──────────────────────────────── */
-    .log-card { background: var(--card); border-radius: 20px; padding: 16px; box-shadow: var(--shadow); }
-    .log-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
-    .log-title  { font-size: 15px; font-weight: 700; }
-    .log-clear-btn {
-      background: #FEE2E2; color: #DC2626;
-      border: none; border-radius: 8px; padding: 5px 12px;
-      font-family: 'Outfit', sans-serif; font-size: 12px; font-weight: 600; cursor: pointer;
-    }
-    .log-entries { display: flex; flex-direction: column; gap: 6px; max-height: 220px; overflow-y: auto; }
-    .log-entry {
-      display: flex; gap: 10px; align-items: flex-start;
-      padding: 10px 12px; border-radius: 12px; background: #F9FAFB;
-      font-size: 12px;
-    }
-    .log-entry.sos { background: #FEF2F2; }
-    .log-entry.loc { background: #F0FDF4; }
-    .log-tag {
-      font-weight: 700; font-size: 10px; padding: 2px 7px; border-radius: 6px;
-      white-space: nowrap; margin-top: 1px;
-    }
-    .tag-sos { background: #FEE2E2; color: #DC2626; }
-    .tag-loc { background: #DCFCE7; color: #16A34A; }
-    .tag-sys { background: var(--purple-light); color: var(--purple-1); }
-    .tag-err { background: #FEF3C7; color: #D97706; }
-    .log-text { flex: 1; color: var(--text-1); font-weight: 500; }
-    .log-time  { color: var(--text-2); font-size: 11px; white-space: nowrap; }
-
-    /* ── BOTTOM NAV ─────────────────────────────── */
-    .bottom-nav {
-      position: fixed; bottom: 0; left: 0; right: 0;
-      background: #fff;
-      border-top: 1px solid #F3F4F6;
-      padding: 10px 0 env(safe-area-inset-bottom);
-      display: flex; z-index: 100;
-      box-shadow: 0 -4px 20px rgba(0,0,0,0.06);
-    }
-    .nav-item {
-      flex: 1; display: flex; flex-direction: column;
-      align-items: center; gap: 4px;
-      cursor: pointer; padding: 4px;
-      color: var(--text-2); font-size: 11px; font-weight: 500;
-      transition: color 0.2s; border: none; background: none;
-      font-family: 'Outfit', sans-serif;
-    }
-    .nav-item.active { color: var(--purple-1); }
-    .nav-item .nav-icon-wrap {
-      width: 36px; height: 36px; border-radius: 12px;
-      display: flex; align-items: center; justify-content: center;
-      transition: background 0.2s;
-    }
-    .nav-item.active .nav-icon-wrap { background: var(--purple-light); }
-
-    /* ── TAB SECTIONS ───────────────────────────── */
-    .tab-section { display: none; }
-    .tab-section.active { display: block; }
-
-    /* ── WI-FI MODAL ────────────────────────────── */
-    .modal-overlay {
-      display: none; position: fixed; inset: 0; z-index: 500;
-      background: rgba(0,0,0,0.5); backdrop-filter: blur(4px);
-      align-items: flex-end; justify-content: center;
-    }
-    .modal-overlay.show { display: flex; }
-    .modal-sheet {
-      background: #fff; border-radius: 28px 28px 0 0;
-      padding: 24px 20px 40px;
-      width: 100%; max-width: 500px;
-      animation: slideUp 0.35s cubic-bezier(0.34,1.56,0.64,1);
-    }
-    @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
-    .modal-handle { width: 40px; height: 4px; background: #E5E7EB; border-radius: 2px; margin: 0 auto 20px; }
-    .modal-title  { font-size: 18px; font-weight: 800; margin-bottom: 16px; }
-    .wifi-detail  { background: #F9FAFB; border-radius: 12px; padding: 14px; margin-bottom: 12px; }
-    .wifi-row     { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; }
-    .wifi-key     { font-size: 13px; color: var(--text-2); font-weight: 500; }
-    .wifi-val     { font-size: 14px; font-weight: 700; font-family: monospace; }
-    .wifi-btn {
-      width: 100%; padding: 16px; border: none; border-radius: 14px;
-      font-family: 'Outfit', sans-serif; font-size: 16px; font-weight: 700;
-      cursor: pointer; margin-bottom: 10px;
-    }
-    .wifi-btn.primary { background: var(--purple-1); color: #fff; }
-    .wifi-btn.secondary { background: var(--purple-light); color: var(--purple-1); }
-  </style>
+  <link rel="stylesheet" href="style.css?v=20260728_v10">
 </head>
 <body>
 
 <!-- ═══════════════════════════════════════════════════════
-     PERMISSION SPLASH
+     PERMISSION SPLASH SCREEN
 ═══════════════════════════════════════════════════════ -->
 <div id="splash">
   <div class="splash-logo">
@@ -565,7 +36,7 @@
 
   <div class="perm-card">
     <div class="perm-row">
-      <div class="perm-icon-box loc">📍</div>
+      <div class="perm-icon-box">📍</div>
       <div class="perm-info">
         <strong>GPS Location</strong>
         <span>Real-time tracking &amp; emergency alerts</span>
@@ -573,7 +44,7 @@
       <span class="perm-badge wait" id="ps-loc">Waiting</span>
     </div>
     <div class="perm-row">
-      <div class="perm-icon-box noti">🔔</div>
+      <div class="perm-icon-box">🔔</div>
       <div class="perm-info">
         <strong>Notifications</strong>
         <span>SOS alerts when app is in background</span>
@@ -581,7 +52,7 @@
       <span class="perm-badge wait" id="ps-noti">Waiting</span>
     </div>
     <div class="perm-row">
-      <div class="perm-icon-box vib">📳</div>
+      <div class="perm-icon-box">📳</div>
       <div class="perm-info">
         <strong>Device Vibration</strong>
         <span>Emergency haptic feedback</span>
@@ -596,11 +67,11 @@
 </div>
 
 <!-- ═══════════════════════════════════════════════════════
-     MAIN APP
+     MAIN MOBILE DASHBOARD
 ═══════════════════════════════════════════════════════ -->
 <div id="app">
 
-  <!-- HEADER -->
+  <!-- TOP GRADIENT HEADER -->
   <div class="app-header">
     <div class="header-row">
       <div class="header-brand">
@@ -623,6 +94,7 @@
       </button>
     </div>
 
+    <!-- STATS BAR -->
     <div class="stats-bar">
       <div class="stat-item">
         <div class="stat-val"><span class="stat-dot dot-off" id="hdrDevDot"></span><span id="hdrDevice">--</span></div>
@@ -654,48 +126,77 @@
   <!-- SCROLL CONTENT -->
   <div class="main-scroll">
 
-    <!-- ── TAB: HOME ─────────────────────────────── -->
+    <!-- ── TAB 1: HOME ─────────────────────────────── -->
     <div id="tab-home" class="tab-section active">
 
-      <!-- Status Cards -->
-      <div class="section-label">Device Status</div>
-      <div class="status-cards">
-        <div class="status-card purple-border">
-          <div class="sc-top">
-            <div class="sc-icon purple">📡</div>
-            <div class="sc-dot bad" id="dotDevice"></div>
+      <!-- HERO RANK CARDS (Matching UI Reference Image) -->
+      <div class="section-label">Safety Status Overview</div>
+      <div class="hero-cards-list">
+        
+        <!-- Card 1: Blue -->
+        <div class="hero-rank-card blue">
+          <div class="hero-card-left">
+            <div class="hero-avatar">📡</div>
+            <div>
+              <div class="hero-info-title" id="deviceStatusText">Watch Connected</div>
+              <div class="hero-info-sub">ESP32-S3 Hardware • Live Status</div>
+            </div>
           </div>
-          <div class="sc-val" id="deviceStatusText">Offline</div>
-          <div class="sc-lbl">Watch Connection</div>
-        </div>
-        <div class="status-card">
-          <div class="sc-top">
-            <div class="sc-icon green">📍</div>
-            <div class="sc-dot bad" id="dotGps"></div>
+          <div class="rank-circle">
+            <div class="rank-num">1</div>
+            <div class="rank-lbl">RANK</div>
           </div>
-          <div class="sc-val" id="gpsStatusText">--</div>
-          <div class="sc-lbl">GPS Signal</div>
         </div>
-        <div class="status-card">
-          <div class="sc-top">
-            <div class="sc-icon orange">🔊</div>
-            <div class="sc-dot ok" id="dotSos"></div>
+
+        <!-- Card 2: Gold/Orange -->
+        <div class="hero-rank-card gold">
+          <div class="hero-card-left">
+            <div class="hero-avatar">📍</div>
+            <div>
+              <div class="hero-info-title" id="gpsStatusText">GPS Active</div>
+              <div class="hero-info-sub">Real-Time Mobile Geolocation</div>
+            </div>
           </div>
-          <div class="sc-val" id="sosStatusText">Normal</div>
-          <div class="sc-lbl">SOS Alarm</div>
-        </div>
-        <div class="status-card">
-          <div class="sc-top">
-            <div class="sc-icon pink">💬</div>
-            <div class="sc-dot ok"></div>
+          <div class="rank-circle">
+            <div class="rank-num">2</div>
+            <div class="rank-lbl">RANK</div>
           </div>
-          <div class="sc-val" style="font-size:14px; color:#16A34A;">Ready</div>
-          <div class="sc-lbl">WhatsApp Alerts</div>
         </div>
+
+        <!-- Card 3: Pink -->
+        <div class="hero-rank-card pink">
+          <div class="hero-card-left">
+            <div class="hero-avatar">💬</div>
+            <div>
+              <div class="hero-info-title">WhatsApp Gateway</div>
+              <div class="hero-info-sub">CallMeBot API + wa.me Backup</div>
+            </div>
+          </div>
+          <div class="rank-circle">
+            <div class="rank-num">3</div>
+            <div class="rank-lbl">RANK</div>
+          </div>
+        </div>
+
+        <!-- Card 4: Purple -->
+        <div class="hero-rank-card purple">
+          <div class="hero-card-left">
+            <div class="hero-avatar">☁️</div>
+            <div>
+              <div class="hero-info-title" id="mqttTitle">HiveMQ Cloud</div>
+              <div class="hero-info-sub" id="mqttSub">Global MQTT Bridge Active</div>
+            </div>
+          </div>
+          <div class="rank-circle">
+            <div class="rank-num">4</div>
+            <div class="rank-lbl">RANK</div>
+          </div>
+        </div>
+
       </div>
 
-      <!-- SOS BUTTON -->
-      <div class="section-label">Emergency SOS</div>
+      <!-- BIG SOS BUTTON -->
+      <div class="section-label">Emergency SOS Action</div>
       <div class="sos-section">
         <div class="big-sos-wrap">
           <button class="big-sos-btn" onclick="triggerSOSEvent()">
@@ -707,40 +208,15 @@
           </button>
         </div>
         <div class="sos-sub-btns">
-          <button class="sos-sub-btn danger" onclick="resetSOSState()">✕ Reset</button>
-          <button class="sos-sub-btn" onclick="triggerVibrationTest()">📳 Test Vibrate</button>
+          <button class="sos-sub-btn danger" onclick="resetSOSState()">✕ Reset SOS</button>
+          <button class="sos-sub-btn" onclick="triggerVibrationTest()">📳 Vibrate</button>
           <button class="sos-sub-btn" onclick="showWifiModal()">📶 Wi-Fi</button>
         </div>
       </div>
 
-      <!-- MQTT Card -->
-      <div class="section-label">Cloud Bridge</div>
-      <div class="mqtt-card">
-        <div class="mqtt-icon">☁️</div>
-        <div class="mqtt-info">
-          <div class="mqtt-title" id="mqttTitle">MQTT Bridge</div>
-          <div class="mqtt-sub" id="mqttSub">HiveMQ Cloud • safetywatch/Jevin</div>
-        </div>
-        <div class="mqtt-status-pill connecting" id="mqttPill">Connecting…</div>
-      </div>
-
-      <!-- OLED Mirror -->
-      <div class="section-label">OLED Display Mirror</div>
-      <div class="oled-card">
-        <div class="oled-card-header">
-          <div class="oled-card-title">SSD1306 • 0.96" I2C</div>
-          <div class="oled-badge">GPIO8/9 • 0x3C</div>
-        </div>
-        <div class="oled-screen" id="oledScreen">SafetyWatch AI
-WiFi: --
-SOS: Normal
-Lat: --
-Lon: --</div>
-      </div>
-
     </div><!-- /tab-home -->
 
-    <!-- ── TAB: MAP ──────────────────────────────── -->
+    <!-- ── TAB 2: MAP ──────────────────────────────── -->
     <div id="tab-map" class="tab-section">
       <div class="section-label">Real-Time GPS Tracking</div>
       <div class="map-card">
@@ -782,18 +258,18 @@ Lon: --</div>
       </div>
     </div><!-- /tab-map -->
 
-    <!-- ── TAB: CONTACTS ────────────────────────── -->
+    <!-- ── TAB 3: CONTACTS ────────────────────────── -->
     <div id="tab-contacts" class="tab-section">
       <div class="section-label">Family Emergency Contacts</div>
 
-      <a class="callmebot-link" href="https://wa.me/34644519169?text=I%20allow%20callmebot%20to%20send%20me%20messages" target="_blank" rel="noopener" style="margin-bottom:10px; display:block;">
+      <a class="callmebot-link" href="https://wa.me/34644519169?text=I%20allow%20callmebot%20to%20send%20me%20messages" target="_blank" rel="noopener" style="margin-bottom:12px; display:block;">
         ⚡ Tap to Activate CallMeBot WhatsApp API
       </a>
 
       <div class="contact-list" id="contactsGrid"></div>
 
-      <!-- Add Contact -->
-      <div style="margin-top:12px;">
+      <!-- Add Contact Form -->
+      <div style="margin-top:14px;">
         <div class="add-contact-card" onclick="toggleAddForm()">
           <div class="add-lbl">+ Add Emergency Contact</div>
         </div>
@@ -807,7 +283,7 @@ Lon: --</div>
       </div>
     </div><!-- /tab-contacts -->
 
-    <!-- ── TAB: LOGS ─────────────────────────────── -->
+    <!-- ── TAB 4: LOGS ─────────────────────────────── -->
     <div id="tab-logs" class="tab-section">
       <div class="log-card">
         <div class="log-header">
@@ -820,7 +296,7 @@ Lon: --</div>
 
   </div><!-- /main-scroll -->
 
-  <!-- BOTTOM NAV -->
+  <!-- BOTTOM NAV BAR -->
   <nav class="bottom-nav">
     <button class="nav-item active" id="nav-home" onclick="switchTab('home')">
       <div class="nav-icon-wrap">
@@ -836,7 +312,7 @@ Lon: --</div>
     </button>
     <button class="nav-item" id="nav-contacts" onclick="switchTab('contacts')">
       <div class="nav-icon-wrap">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 1 0 7.75"/></svg>
       </div>
       Contacts
     </button>
@@ -850,7 +326,7 @@ Lon: --</div>
 
 </div><!-- /app -->
 
-<!-- Wi-Fi Modal -->
+<!-- WI-FI MODAL -->
 <div id="wifiModal" class="modal-overlay" onclick="if(event.target===this)closeWifiModal()">
   <div class="modal-sheet">
     <div class="modal-handle"></div>
@@ -866,6 +342,6 @@ Lon: --</div>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-<script src="app.js?v=20260728_v5"></script>
+<script src="app.js?v=20260728_v10"></script>
 </body>
 </html>

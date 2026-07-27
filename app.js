@@ -543,7 +543,7 @@ function renderUI() {
     if (deviceState.sos) {
       oledEl.innerHTML = `🚨 EMERGENCY ALERT 🚨\nHELP NEEDED NOW!\nLat: ${deviceState.lat.substring(0, 7)}\nLon: ${deviceState.lon.substring(0, 7)}`;
     } else {
-      oledEl.innerHTML = `SafetyWatch AI\nWiFi: ${deviceState.wifi}\nSOS: Normal\nLat: ${deviceState.lat.substring(0, 7)}\nLon: ${deviceState.lon.substring(0, 7)}`;
+      oledEl.innerHTML = `JEV-pvt SafetyWatch\nWiFi: ${deviceState.wifi}\nSOS: Normal\nLat: ${deviceState.lat.substring(0, 7)}\nLon: ${deviceState.lon.substring(0, 7)}`;
     }
   }
 }

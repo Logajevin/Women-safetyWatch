@@ -1,5 +1,5 @@
 // ============================================================================
-// SafetyWatch AI — Auto Mobile GPS Sync & Multi-User Dashboard
+// SafetyWatch AI — Bulletproof SOS Trigger & Multi-User Sync Dashboard
 // ============================================================================
 
 let currentMode = 'simulator';
@@ -33,9 +33,9 @@ let sirenOsc = null;
 let sirenGain = null;
 let isSirenMuted = false;
 
-// Default Family Contacts
+// Default Family Contacts with Indian (+91) Country Code
 let familyContacts = [
-  { id: '1', name: 'Mom (Family)', phone: '+91 9876543210', apiKey: '123456', relation: 'Primary Contact' },
+  { id: '1', name: 'Mom (Primary)', phone: '+91 9876543210', apiKey: '123456', relation: 'Primary Contact' },
   { id: '2', name: 'Dad (Guardian)', phone: '+91 9876543211', apiKey: '654321', relation: 'Secondary Contact' }
 ];
 
@@ -46,21 +46,17 @@ document.addEventListener('DOMContentLoaded', () => {
   loadContactsFromStorage();
   renderContacts();
   initMultiUserSyncStream();
-  startAutomaticMobileGPS(); // AUTO GPS TRACKING ON LOAD
+  startAutomaticMobileGPS();
   
-  addTelemetryLog('SYS', 'Auto GPS Sync Engine Started', 'Browser automatically tracking & syncing GPS to SafetyWatch');
+  addTelemetryLog('SYS', 'SafetyWatch Ready', 'SOS Alert Engine Armed (Hardware + Web)');
   
-  pollInterval = setInterval(updateCycle, 1000);
+  pollInterval = setInterval(updateCycle, 800);
 });
 
-// ---------------- AUTOMATIC MOBILE GPS TRACKING ENGINE ----------------
+// ---------------- AUTOMATIC MOBILE GPS TRACKING ----------------
 function startAutomaticMobileGPS() {
-  if (!navigator.geolocation) {
-    addTelemetryLog('LOC', 'GPS Warning', 'Browser Geolocation API not supported');
-    return;
-  }
+  if (!navigator.geolocation) return;
 
-  // Watch position automatically as user moves
   autoGpsWatchId = navigator.geolocation.watchPosition(
     (pos) => {
       const lat = pos.coords.latitude.toString();
@@ -73,16 +69,110 @@ function startAutomaticMobileGPS() {
 
       updateMapPosition(lat, lon, acc);
       
-      // Automatically send location to ESP32 hardware when connected!
       if (currentMode === 'live' || deviceState.online) {
         sendLocationToESP32(lat, lon, acc);
       }
     },
-    (err) => {
-      addTelemetryLog('LOC', 'Auto GPS Trace', err.message);
-    },
+    (err) => {},
     { enableHighAccuracy: true, timeout: 15000, maximumAge: 3000 }
   );
+}
+
+// ---------------- BULLETPROOF SOS TRIGGER ENGINE ----------------
+function triggerSOSEvent() {
+  deviceState.sos = true;
+  deviceState.sosTimestamp = Date.now();
+  
+  if (currentMode === 'live') {
+    fetch(`/api/proxy/sos?targetIp=${encodeURIComponent(esp32Ip)}`).catch(() => {});
+  }
+
+  onInstantSOSDetected('Web SOS Button Click');
+}
+
+function onInstantSOSDetected(triggerSource) {
+  addTelemetryLog('SOS', '🚨 CRITICAL EMERGENCY SOS ACTIVATED', `Source: ${triggerSource}`);
+  
+  // 1. Play Loud Siren Sound
+  triggerAudioSiren(true);
+  
+  // 2. Show Flashing Red Banner
+  renderUI();
+  
+  // 3. Dispatch WhatsApp Emergency Message
+  broadcastAutoWhatsAppEmergency(triggerSource);
+}
+
+function broadcastAutoWhatsAppEmergency(source = 'SOS Trigger') {
+  addTelemetryLog('SOS', 'Dispatching Emergency WhatsApp Alerts...', `Contacts: ${familyContacts.length}`);
+
+  // 1. Try CallMeBot Auto API
+  fetch('/api/auto-dispatch-sos', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contacts: familyContacts,
+      lat: deviceState.lat,
+      lon: deviceState.lon,
+      accuracy: deviceState.accuracy,
+      mapsUrl: deviceState.mapsUrl,
+      source: source
+    })
+  })
+  .then(r => r.json())
+  .then(data => {
+    addTelemetryLog('SOS', '✅ Automated WhatsApp API Delivered', `Targeted ${data.dispatchedCount || familyContacts.length} numbers.`);
+  })
+  .catch(err => {
+    addTelemetryLog('SOS', 'API Notice: Launching wa.me Backup', err.message);
+  });
+
+  // 2. Direct Instant WhatsApp Deep-Link Fallback
+  if (familyContacts.length > 0) {
+    sendWhatsAppToContact(familyContacts[0].phone);
+  }
+}
+
+function buildEmergencyMessage() {
+  const mapsUrl = deviceState.mapsUrl || `https://maps.google.com/?q=${deviceState.lat},${deviceState.lon}`;
+  const timestamp = new Date().toLocaleString();
+  
+  return `🚨 EMERGENCY ALERT - SAFETY WATCH 🚨\n\n` +
+         `SOS IS ACTIVE! Immediate assistance required.\n` +
+         `📅 Time: ${timestamp}\n` +
+         `📍 Location: ${deviceState.lat}, ${deviceState.lon}\n` +
+         `🎯 Accuracy: ~${deviceState.accuracy}\n\n` +
+         `🗺 Live Map: ${mapsUrl}`;
+}
+
+function sendWhatsAppToContact(phone) {
+  const cleanPhone = phone.replace(/[^0-9]/g, '');
+  const msg = encodeURIComponent(buildEmergencyMessage());
+  const url = `https://wa.me/${cleanPhone}?text=${msg}`;
+  window.open(url, '_blank');
+  addTelemetryLog('SOS', 'WhatsApp wa.me Gateway Launched', `Target: ${phone}`);
+}
+
+function resetSOSState() {
+  deviceState.sos = false;
+  lastSosState = false;
+  addTelemetryLog('SYS', 'SOS Cleared', 'System returned to Normal');
+  triggerAudioSiren(false);
+
+  if (currentMode === 'live') {
+    fetch(`/api/proxy/reset?targetIp=${encodeURIComponent(esp32Ip)}`).catch(() => {});
+  }
+
+  renderUI();
+}
+
+function triggerVibrationTest() {
+  addTelemetryLog('SYS', 'Vibration Test', 'Motor pulse (1.5s)');
+  if (currentMode === 'live') {
+    fetch(`/api/proxy/sos?targetIp=${encodeURIComponent(esp32Ip)}`).catch(() => {});
+  } else {
+    alert('Vibration Motor Pulse Triggered (1.5s)!');
+  }
 }
 
 // ---------------- WI-FI CONNECT & MOBILE DEEP-LINK HANDLERS ----------------
@@ -97,8 +187,6 @@ function closeWifiConnectModal() {
 
 function triggerAutoWifiSettings() {
   const ua = navigator.userAgent.toLowerCase();
-  
-  // Mobile Android Intent launch for Wi-Fi Settings & Wi-Fi scan
   if (ua.includes('android')) {
     window.location.href = 'intent://#Intent;action=android.settings.WIFI_SETTINGS;end';
   } else if (ua.includes('iphone') || ua.includes('ipad')) {
@@ -108,23 +196,18 @@ function triggerAutoWifiSettings() {
   } else {
     alert('Please open your phone Wi-Fi settings, select "SafetyWatch", and enter password "Jevin".');
   }
-
-  addTelemetryLog('SYS', 'Opening Wi-Fi Settings', 'Searching for SafetyWatch AP');
 }
 
 function copyWifiPassword() {
   navigator.clipboard.writeText('Jevin').then(() => {
     alert('Password "Jevin" copied to clipboard!');
-  }).catch(() => {
-    alert('Password: Jevin');
-  });
+  }).catch(() => alert('Password: Jevin'));
 }
 
 // ---------------- REAL-TIME MULTI-USER SSE STREAM ----------------
 function initMultiUserSyncStream() {
   if (!!window.EventSource) {
     sseSource = new EventSource('/api/stream');
-    
     sseSource.onmessage = (e) => {
       try {
         const payload = JSON.parse(e.data);
@@ -136,7 +219,7 @@ function initMultiUserSyncStream() {
           
           updateMapPosition(deviceState.lat, deviceState.lon);
           triggerAudioSiren(true);
-          addTelemetryLog('SOS', '🚨 MULTI-USER LIVE SOS SYNC', `Broadcast from: ${payload.source || 'Another User/Watch'}`);
+          addTelemetryLog('SOS', '🚨 MULTI-USER SOS SYNC', `Broadcast from: ${payload.source || 'Watch'}`);
           renderUI();
         }
       } catch(err) {}
@@ -177,7 +260,6 @@ function initMap() {
 function updateMapPosition(lat, lon, accuracy = 20) {
   const latNum = parseFloat(lat);
   const lonNum = parseFloat(lon);
-
   if (isNaN(latNum) || isNaN(lonNum)) return;
 
   const newLatLng = new L.LatLng(latNum, lonNum);
@@ -262,6 +344,7 @@ function updateCycle() {
     fetchLiveStatus();
   }
 
+  // Detect SOS state change from ESP32 hardware!
   if (deviceState.sos && !lastSosState) {
     onInstantSOSDetected('Hardware Watch Button Press');
   }
@@ -285,7 +368,10 @@ function fetchLiveStatus() {
       deviceState.wifi = 'Connected';
       deviceState.ip = data.ip || esp32Ip;
       deviceState.oled = data.oled || 'OK';
-      deviceState.sos = data.sos;
+      
+      if (data.sos) {
+        deviceState.sos = true;
+      }
 
       if (data.latitude && data.latitude !== 'N/A') {
         deviceState.lat = data.latitude;
@@ -293,7 +379,6 @@ function fetchLiveStatus() {
         deviceState.accuracy = data.accuracy || '15m';
         updateMapPosition(deviceState.lat, deviceState.lon, deviceState.accuracy);
       } else {
-        // Auto-push phone GPS to ESP32 when ESP32 has no GPS fix!
         sendLocationToESP32(deviceState.lat, deviceState.lon, deviceState.accuracy);
       }
     })
@@ -308,98 +393,7 @@ function fetchLiveStatus() {
 function sendLocationToESP32(lat, lon, acc) {
   fetch(`/api/proxy/location?targetIp=${encodeURIComponent(esp32Ip)}&lat=${lat}&lon=${lon}&acc=${acc}`)
     .then(r => r.json())
-    .then(data => {
-      addTelemetryLog('LOC', 'Auto GPS Synced to Watch', `Lat: ${lat.substring(0,7)}, Lon: ${lon.substring(0,7)}`);
-    })
     .catch(() => {});
-}
-
-// ---------------- DUAL GATEWAY AUTOMATED WHATSAPP DISPATCH ----------------
-function triggerSOSEvent() {
-  deviceState.sos = true;
-  deviceState.sosTimestamp = Date.now();
-  
-  if (currentMode === 'live') {
-    fetch(`/api/proxy/sos?targetIp=${encodeURIComponent(esp32Ip)}`);
-  }
-
-  onInstantSOSDetected('Web Command SOS Button');
-}
-
-function onInstantSOSDetected(triggerSource) {
-  addTelemetryLog('SOS', '🚨 DUAL WHATSAPP DISPATCH (AUTO API + WA.ME BACKUP)', `Source: ${triggerSource}`);
-  triggerAudioSiren(true);
-  broadcastAutoWhatsAppEmergency(triggerSource);
-}
-
-function broadcastAutoWhatsAppEmergency(source = 'Manual Trigger') {
-  if (familyContacts.length === 0) {
-    return alert('Please add at least one family contact first!');
-  }
-
-  addTelemetryLog('SOS', 'Sending Dual WhatsApp Alerts...', `Contacts: ${familyContacts.length}`);
-
-  fetch('/api/auto-dispatch-sos', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contacts: familyContacts,
-      lat: deviceState.lat,
-      lon: deviceState.lon,
-      accuracy: deviceState.accuracy,
-      mapsUrl: deviceState.mapsUrl,
-      source: source
-    })
-  })
-  .then(r => r.json())
-  .then(data => {
-    addTelemetryLog('SOS', '✅ Auto WhatsApp API Executed', `Targeted ${data.dispatchedCount || familyContacts.length} numbers.`);
-  })
-  .catch(err => {
-    addTelemetryLog('SOS', 'Auto API Notice: Triggering wa.me Backup', err.message);
-  });
-
-  if (familyContacts.length > 0) {
-    sendWhatsAppToContact(familyContacts[0].phone);
-  }
-}
-
-function buildEmergencyMessage() {
-  const mapsUrl = deviceState.mapsUrl || `https://maps.google.com/?q=${deviceState.lat},${deviceState.lon}`;
-  const timestamp = new Date().toLocaleString();
-  
-  return `🚨 EMERGENCY ALERT - SAFETY WATCH 🚨\n\n` +
-         `SOS is ACTIVE! Immediate assistance required.\n` +
-         `📅 Time: ${timestamp}\n` +
-         `📍 Location: ${deviceState.lat}, ${deviceState.lon}\n` +
-         `🎯 Accuracy: ~${deviceState.accuracy}\n\n` +
-         `🗺 Live Map: ${mapsUrl}`;
-}
-
-function sendWhatsAppToContact(phone) {
-  const cleanPhone = phone.replace(/[^0-9]/g, '');
-  const msg = encodeURIComponent(buildEmergencyMessage());
-  const url = `https://wa.me/${cleanPhone}?text=${msg}`;
-  window.open(url, '_blank');
-  addTelemetryLog('SOS', 'WhatsApp wa.me Gateway Launched', `Target: ${phone}`);
-}
-
-function resetSOSState() {
-  deviceState.sos = false;
-  lastSosState = false;
-  addTelemetryLog('SYS', 'SOS Reset', 'Emergency cleared');
-  triggerAudioSiren(false);
-
-  if (currentMode === 'live') {
-    fetch(`/api/proxy/reset?targetIp=${encodeURIComponent(esp32Ip)}`);
-  }
-
-  renderUI();
-}
-
-function triggerVibrationTest() {
-  addTelemetryLog('SYS', 'Vibration Test', 'Motor pulse (1.5s)');
-  alert('Vibration Motor Pulse Triggered (1.5s)!');
 }
 
 // ---------------- CONTACTS MANAGEMENT WITH +91 FORMATTING ----------------
@@ -463,7 +457,7 @@ function loadContactsFromStorage() {
 function renderContacts() {
   const grid = document.getElementById('contactsGrid');
   if (familyContacts.length === 0) {
-    grid.innerHTML = `<p style="color:var(--text-muted); grid-column: 1/-1; text-align:center; padding:20px;">No family emergency contacts added yet. Click "Add Contact" above to configure your free CallMeBot WhatsApp API keys.</p>`;
+    grid.innerHTML = `<p style="color:var(--text-muted); grid-column: 1/-1; text-align:center; padding:20px;">No family emergency contacts added yet. Click "Add Contact" above to configure your CallMeBot WhatsApp API keys.</p>`;
     return;
   }
 
@@ -486,6 +480,31 @@ function renderContacts() {
   `).join('');
 }
 
+function testWhatsAppApiKey(phone, apiKey, name) {
+  const cleanPhone = phone.replace(/[^0-9+]/g, '');
+  addTelemetryLog('SOS', 'Testing WhatsApp API Key...', `Target: ${name} (${cleanPhone})`);
+
+  fetch('/api/auto-dispatch-sos', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contacts: [{ name, phone: cleanPhone, apiKey }],
+      lat: deviceState.lat,
+      lon: deviceState.lon,
+      accuracy: deviceState.accuracy,
+      mapsUrl: deviceState.mapsUrl,
+      source: 'API Verification Test'
+    })
+  })
+  .then(r => r.json())
+  .then(data => {
+    alert(`✅ Test Message Sent to ${name} (${cleanPhone})!`);
+  })
+  .catch(err => {
+    sendWhatsAppToContact(cleanPhone);
+  });
+}
+
 // ---------------- AUDIO SIREN SYNTHESIZER ----------------
 function toggleAudioSiren() {
   isSirenMuted = !isSirenMuted;
@@ -501,10 +520,7 @@ function toggleAudioSiren() {
 
 function triggerAudioSiren(enable) {
   if (isSirenMuted) return;
-
-  if (!audioCtx) {
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  }
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
   if (enable) {
     if (sirenOsc) return;
@@ -560,9 +576,6 @@ function renderUI() {
 
   document.getElementById('batteryText').textContent = `${deviceState.battery}%`;
   document.getElementById('batteryBar').style.width = `${deviceState.battery}%`;
-
-  document.getElementById('uptimeText').textContent = `${deviceState.uptime}s`;
-  document.getElementById('pingText').textContent = `Latency: ${deviceState.pingMs} ms`;
 
   const oledEl = document.getElementById('oledScreen');
   

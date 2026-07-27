@@ -1,15 +1,6 @@
 // ============================================================================
-// SafetyWatch AI — Smart Dual-Mode Dashboard
-// AUTO-DETECTS: localhost:3000 (ESP32 via server SSE) vs GitHub Pages (GPS only)
+// SafetyWatch AI — Mobile-First Dashboard Logic (MQTT Cloud + GPS Engine)
 // ============================================================================
-
-// ── CONNECTION MODE DETECTION ─────────────────────────────────────────────
-const IS_LOCALHOST = (location.hostname === 'localhost' || location.hostname === '127.0.0.1');
-const IS_GITHUB    = location.hostname.includes('github.io');
-
-let autoGpsWatchId = null;
-let lastSosState = false;
-let sseSource = null;
 
 let deviceState = {
   online: false,
@@ -18,12 +9,11 @@ let deviceState = {
   oled: 'Not Detected',
   lat: '12.9716',
   lon: '77.5946',
-  accuracy: '12m',
+  accuracy: '15m',
   sos: false,
   sosTimestamp: 0,
   uptime: 0,
-  battery: 98,
-  pingMs: 0,
+  battery: 100,
   mapsUrl: 'https://maps.google.com/?q=12.9716,77.5946',
   gpsActive: false
 };
@@ -35,6 +25,8 @@ let audioCtx = null;
 let sirenOsc = null;
 let sirenGain = null;
 let isSirenMuted = false;
+let autoGpsWatchId = null;
+let mqttClient = null;
 
 let familyContacts = [
   { id: '1', name: 'Mom (Primary)',  phone: '+91 9876543210', apiKey: '123456', relation: 'Primary Contact'   },
@@ -43,57 +35,97 @@ let familyContacts = [
 
 let telemetryLogs = [];
 
-// ── SPLASH SCREEN PERMISSION LOGIC ───────────────────────────────────────
-function grantAllPermissions() {
-  const btn = document.getElementById('btnGrantAll');
-  btn.disabled = true;
-  btn.textContent = 'Requesting permissions…';
+// ── PERMISSION SPLASH & AUTO-ENTER ───────────────────────────────────────
+function grantPermissions() {
+  const btn = document.getElementById('btnGrant');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Acquiring GPS & Notification Permissions...';
+  }
 
-  // 1. GPS Location
+  let locationAcquired = false;
+
+  // 1. Request GPS Geolocation
   if (navigator.geolocation) {
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        document.getElementById('ps-loc').textContent = '✅ Granted';
-        document.getElementById('ps-loc').className = 'perm-status granted';
+        const badge = document.getElementById('ps-loc');
+        if (badge) {
+          badge.textContent = '✓ Granted';
+          badge.className = 'perm-badge granted';
+        }
         onGPSPosition(pos);
+        locationAcquired = true;
+        enterDashboard();
       },
-      () => {
-        document.getElementById('ps-loc').textContent = '❌ Denied';
-        document.getElementById('ps-loc').className = 'perm-status denied';
+      (err) => {
+        const badge = document.getElementById('ps-loc');
+        if (badge) {
+          badge.textContent = '⚠️ Denied';
+          badge.className = 'perm-badge denied';
+        }
+        addTelemetryLog('LOC', 'GPS Permission Denied', err.message);
+        // Enter dashboard anyway so user isn't stuck
+        enterDashboard();
       },
       { enableHighAccuracy: true, timeout: 10000 }
     );
-  }
-
-  // 2. Notification permission
-  if ('Notification' in window) {
-    Notification.requestPermission().then(perm => {
-      const el = document.getElementById('ps-noti');
-      if (perm === 'granted') { el.textContent = '✅ Granted'; el.className = 'perm-status granted'; }
-      else { el.textContent = '⚠️ Declined'; el.className = 'perm-status denied'; }
-    });
   } else {
-    document.getElementById('ps-noti').textContent = 'N/A';
+    enterDashboard();
   }
 
-  // 3. Vibration (no permission needed but show Auto)
-  document.getElementById('ps-vib').textContent = '✅ Auto';
-  document.getElementById('ps-vib').className = 'perm-status granted';
-
-  // Close splash after 1.5s
-  setTimeout(() => closeSplash(), 1500);
+  // 2. Request Notification Permission
+  if ('Notification' in window) {
+    Notification.requestPermission().then((perm) => {
+      const badge = document.getElementById('ps-noti');
+      if (badge) {
+        if (perm === 'granted') {
+          badge.textContent = '✓ Granted';
+          badge.className = 'perm-badge granted';
+        } else {
+          badge.textContent = '⚠️ Declined';
+          badge.className = 'perm-badge denied';
+        }
+      }
+    });
+  }
 }
 
-function skipSplash() {
-  // Still start GPS silently
+function enterDashboard() {
+  const splash = document.getElementById('splash');
+  const app = document.getElementById('app');
+
+  if (splash) {
+    splash.classList.add('exit');
+    setTimeout(() => {
+      splash.style.display = 'none';
+    }, 600);
+  }
+
+  if (app) {
+    app.classList.add('show');
+  }
+
+  // Init app subsystems
+  initMap();
+  loadContactsFromStorage();
+  renderContacts();
   startAutomaticMobileGPS();
-  closeSplash();
+  initMQTTBridge();
+
+  addTelemetryLog('SYS', 'SafetyWatch Ready', 'All permissions granted — Dashboard active');
+  renderUI();
 }
 
-function closeSplash() {
-  const splash = document.getElementById('permSplash');
-  splash.classList.add('hiding');
-  setTimeout(() => splash.remove(), 500);
+// ── GPS TRACKING ─────────────────────────────────────────────────────────
+function startAutomaticMobileGPS() {
+  if (!navigator.geolocation) return;
+
+  autoGpsWatchId = navigator.geolocation.watchPosition(
+    (pos) => onGPSPosition(pos),
+    (err) => addTelemetryLog('LOC', 'GPS Watch Error', err.message),
+    { enableHighAccuracy: true, timeout: 15000, maximumAge: 3000 }
+  );
 }
 
 function onGPSPosition(pos) {
@@ -101,247 +133,217 @@ function onGPSPosition(pos) {
   const lon = pos.coords.longitude.toString();
   const acc = Math.round(pos.coords.accuracy).toString();
 
-  deviceState.lat      = lat;
-  deviceState.lon      = lon;
+  deviceState.lat = lat;
+  deviceState.lon = lon;
   deviceState.accuracy = acc;
   deviceState.gpsActive = true;
 
   updateMapPosition(lat, lon, acc);
-  updateGPSKpi(true, acc);
-
-  if (IS_LOCALHOST) sendLocationToProxy(lat, lon, acc);
-
-  addTelemetryLog('LOC', '📍 GPS Location Acquired', `Lat: ${parseFloat(lat).toFixed(5)}, Lon: ${parseFloat(lon).toFixed(5)}, Accuracy: ${acc}m`);
-}
-
-function updateGPSKpi(active, acc) {
-  const el   = document.getElementById('gpsStatusText');
-  const elAcc = document.getElementById('gpsAccText');
-  const dot  = document.getElementById('dotGps');
-  if (el) {
-    el.textContent  = active ? 'Active ✅' : 'Searching…';
-    el.style.color  = active ? 'var(--accent-green)' : '';
-  }
-  if (elAcc) elAcc.textContent = active ? `Accuracy: ~${acc}m` : 'Accuracy: --';
-  if (dot)  dot.className = `status-dot ${active ? 'ok' : 'bad'}`;
-}
-
-// ── STARTUP ───────────────────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', () => {
-  initMap();
-  loadContactsFromStorage();
-  renderContacts();
-  updateConnectionModeBanner();
-
-  if (IS_LOCALHOST) {
-    // localhost: server polls ESP32 and pushes via SSE
-    initSSEStream();
-    addTelemetryLog('SYS', '🖥️ Local Server Mode', 'Server polls ESP32 every 400ms. Hardware SOS fully active!');
-  } else {
-    // GitHub Pages / remote: GPS + WhatsApp only. No direct ESP32.
-    addTelemetryLog('SYS', '🌐 GitHub Pages Mode', 'GPS + WhatsApp active. For ESP32 HW SOS open localhost:3000');
-    updateSplashBadge();
-  }
-
-  // Always start GPS tracking
-  startAutomaticMobileGPS();
   renderUI();
-});
-
-function updateConnectionModeBanner() {
-  const b = document.getElementById('connModeBanner');
-  if (!b) return;
-  if (IS_LOCALHOST) {
-    b.className = '';
-    b.innerHTML = `<div class="conn-dot green"></div><div><strong style="color:#00d282;">Local Server Mode</strong> — Server polls ESP32 every 400ms. Hardware SOS button fully connected!</div>`;
-    // Show local server hint in wifi modal
-    const hint = document.getElementById('localServerHint');
-    if (hint) hint.style.display = 'none'; // already local
-  } else {
-    b.className = 'github-mode';
-    b.innerHTML = `<div class="conn-dot purple"></div><div><strong style="color:#8896ff;">GitHub Pages Mode</strong> — GPS &amp; WhatsApp alerts active. <span style="color:rgba(255,255,255,0.5)">For hardware SOS, also open <code style="color:#00d282">http://localhost:3000</code> on your PC.</span></div>`;
-    const hint = document.getElementById('localServerHint');
-    if (hint) hint.style.display = 'block';
-  }
 }
 
-function updateSplashBadge() {
-  const badge = document.getElementById('splashModeBadge');
-  if (!badge) return;
-  if (IS_LOCALHOST) {
-    badge.className = 'splash-mode-badge badge-local';
-    badge.textContent = '🖥️ Local Server — ESP32 SOS Active';
-  } else {
-    badge.className = 'splash-mode-badge badge-github';
-    badge.textContent = '🌐 GitHub Pages — GPS + WhatsApp Mode';
-  }
-}
-
-// ---------------- AUTOMATIC MOBILE GPS TRACKING ----------------
-function startAutomaticMobileGPS() {
-  if (!navigator.geolocation) return;
-
-  autoGpsWatchId = navigator.geolocation.watchPosition(
+function requestBrowserLocation() {
+  if (!navigator.geolocation) return alert('Geolocation not supported');
+  navigator.geolocation.getCurrentPosition(
     (pos) => {
-      onGPSPosition(pos); // reuse shared GPS handler
+      onGPSPosition(pos);
+      addTelemetryLog('LOC', 'Manual GPS Refresh', `Lat: ${parseFloat(pos.coords.latitude).toFixed(5)}, Lon: ${parseFloat(pos.coords.longitude).toFixed(5)}`);
     },
-    (err) => {
-      addTelemetryLog('LOC', '⚠️ GPS Error', err.message || 'Location unavailable');
-    },
-    { enableHighAccuracy: true, timeout: 15000, maximumAge: 3000 }
+    (err) => alert('GPS Error: ' + err.message),
+    { enableHighAccuracy: true }
   );
 }
 
-// -------- SSE STREAM (localhost only) --------
-function initSSEStream() {
-  if (!window.EventSource) return;
-  sseSource = new EventSource('/api/stream');
-  sseSource.onopen    = function() { addTelemetryLog('SYS', 'Local SSE Ready', 'ESP32 state from server'); };
-  sseSource.onmessage = function(e) { try { applyServerState(JSON.parse(e.data)); } catch(err){} };
-  sseSource.onerror   = function() { addTelemetryLog('ERR', 'SSE Error', 'Reconnecting'); };
+// ── LEAFLET MAP ENGINE ───────────────────────────────────────────────────
+function initMap() {
+  const mapEl = document.getElementById('map');
+  if (!mapEl || map) return;
+
+  const defaultLat = parseFloat(deviceState.lat);
+  const defaultLon = parseFloat(deviceState.lon);
+
+  map = L.map('map', { zoomControl: false }).setView([defaultLat, defaultLon], 14);
+
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+    attribution: '&copy; OpenStreetMap &copy; CARTO',
+    maxZoom: 19
+  }).addTo(map);
+
+  const customIcon = L.divIcon({
+    className: 'custom-map-marker',
+    html: `<div style="width:20px; height:20px; background:#7C3AED; border:3px solid #fff; border-radius:50%; box-shadow:0 0 16px rgba(124,58,237,0.6);"></div>`,
+    iconSize: [20, 20],
+    iconAnchor: [10, 10]
+  });
+
+  marker = L.marker([defaultLat, defaultLon], { icon: customIcon }).addTo(map);
+
+  accuracyCircle = L.circle([defaultLat, defaultLon], {
+    color: '#7C3AED',
+    fillColor: '#7C3AED',
+    fillOpacity: 0.15,
+    radius: 50
+  }).addTo(map);
 }
 
-// -------- MQTT BRIDGE — GitHub Pages Hardware SOS --------
-// FLOW: ESP32 home-WiFi -> HiveMQ free cloud MQTT -> GitHub Pages WSS
-// Works from ANY device ANYWHERE in the world!
-var MQTT_BROKER = 'wss://broker.hivemq.com:8884/mqtt';
-var MQTT_SOS    = 'safetywatch/Jevin/sos';
-var MQTT_LOC    = 'safetywatch/Jevin/location';
-var MQTT_STATUS = 'safetywatch/Jevin/status';
-var mqttClient  = null;
+function updateMapPosition(lat, lon, accuracy = 15) {
+  const latNum = parseFloat(lat);
+  const lonNum = parseFloat(lon);
+  if (isNaN(latNum) || isNaN(lonNum)) return;
+
+  const newLatLng = new L.LatLng(latNum, lonNum);
+  if (marker) marker.setLatLng(newLatLng);
+  if (accuracyCircle) {
+    accuracyCircle.setLatLng(newLatLng);
+    accuracyCircle.setRadius(parseFloat(accuracy) || 20);
+  }
+
+  if (map) map.panTo(newLatLng);
+
+  const mapsUrl = `https://maps.google.com/?q=${latNum},${lonNum}`;
+  deviceState.mapsUrl = mapsUrl;
+
+  const mapsBtn = document.getElementById('googleMapsBtn');
+  if (mapsBtn) mapsBtn.href = mapsUrl;
+
+  const latEl = document.getElementById('latVal');
+  const lonEl = document.getElementById('lonVal');
+  const accEl = document.getElementById('accVal');
+  const timeEl = document.getElementById('lastLocTime');
+
+  if (latEl) latEl.textContent = latNum.toFixed(5);
+  if (lonEl) lonEl.textContent = lonNum.toFixed(5);
+  if (accEl) accEl.textContent = `${accuracy}m`;
+  if (timeEl) timeEl.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+
+// ── MQTT CLOUD BRIDGE (HiveMQ Public) ────────────────────────────────────
+const MQTT_BROKER = 'wss://broker.hivemq.com:8884/mqtt';
+const MQTT_SOS    = 'safetywatch/Jevin/sos';
+const MQTT_LOC    = 'safetywatch/Jevin/location';
+const MQTT_STATUS = 'safetywatch/Jevin/status';
 
 function initMQTTBridge() {
-  if (window.mqtt) { connectMQTT(); return; }
-  var s  = document.createElement('script');
-  s.src  = 'https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js';
-  s.onload  = connectMQTT;
-  s.onerror = function() { addTelemetryLog('ERR', 'MQTT.js Failed', 'Check internet'); };
+  if (window.mqtt) {
+    connectMQTT();
+    return;
+  }
+  const s = document.createElement('script');
+  s.src = 'https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js';
+  s.onload = connectMQTT;
+  s.onerror = () => {
+    updateMqttUI('error', 'Script Error', 'Failed to load MQTT.js');
+    addTelemetryLog('ERR', 'MQTT Script Error', 'Failed to load CDN script');
+  };
   document.head.appendChild(s);
 }
 
 function connectMQTT() {
-  var cid = 'sw_web_' + Math.random().toString(16).slice(2,8);
-  addTelemetryLog('SYS', 'MQTT Connecting', 'HiveMQ Cloud — Hardware SOS from anywhere!');
+  const cid = 'sw_mobile_' + Math.random().toString(16).slice(2, 8);
+  updateMqttUI('connecting', 'Connecting...', 'Broker: broker.hivemq.com');
+  addTelemetryLog('SYS', 'MQTT Connecting', 'HiveMQ Cloud Broker');
+
   mqttClient = mqtt.connect(MQTT_BROKER, {
-    clientId: cid, clean: true, connectTimeout: 10000,
-    reconnectPeriod: 3000, keepalive: 30
+    clientId: cid,
+    clean: true,
+    connectTimeout: 10000,
+    reconnectPeriod: 3000,
+    keepalive: 30
   });
 
-  mqttClient.on('connect', function() {
-    addTelemetryLog('SYS', 'MQTT Connected!', 'Topic: ' + MQTT_SOS);
+  mqttClient.on('connect', () => {
+    updateMqttUI('connected', 'Cloud Active ✓', 'Listening for ESP32 Watch SOS');
     mqttClient.subscribe([MQTT_SOS, MQTT_LOC, MQTT_STATUS], { qos: 1 });
-    var d = document.getElementById('deviceStatusText');
-    var i = document.getElementById('deviceIpText');
-    var o = document.getElementById('dotDevice');
-    if (d) d.textContent = 'MQTT Bridge Active';
-    if (i) i.textContent = 'Cloud: HiveMQ Broker';
-    if (o) o.className  = 'status-dot ok';
+    addTelemetryLog('SYS', 'MQTT Connected!', `Subscribed to ${MQTT_SOS}`);
+    deviceState.online = true;
+    renderUI();
   });
 
-  mqttClient.on('message', function(topic, msg) {
+  mqttClient.on('message', (topic, message) => {
     try {
-      var p = JSON.parse(msg.toString());
+      const payload = JSON.parse(message.toString());
+
       if (topic === MQTT_SOS) {
-        if (p.sos === true && !deviceState.sos) {
+        if (payload.sos === true && !deviceState.sos) {
           deviceState.sos = true;
           deviceState.sosTimestamp = Date.now();
-          if (p.lat && p.lat !== 'N/A') {
-            deviceState.lat = p.lat; deviceState.lon = p.lon;
-            updateMapPosition(p.lat, p.lon, 20);
+          if (payload.lat && payload.lat !== 'N/A') {
+            deviceState.lat = payload.lat;
+            deviceState.lon = payload.lon;
+            updateMapPosition(payload.lat, payload.lon, 20);
           }
-          addTelemetryLog('SOS', 'HARDWARE SOS via MQTT!', 'ESP32 Button -> HiveMQ -> GitHub Pages');
-          onInstantSOSDetected('Hardware Watch Button (MQTT Cloud)');
-        } else if (p.sos === false && deviceState.sos) {
-          deviceState.sos = false; triggerAudioSiren(false); renderUI();
-          addTelemetryLog('SYS', 'SOS Reset via MQTT', '');
+          addTelemetryLog('SOS', '🚨 HARDWARE SOS DETECTED!', 'ESP32 Button → MQTT Cloud → Mobile Dashboard');
+          onInstantSOSDetected('Hardware Watch Button (MQTT)');
+        } else if (payload.sos === false && deviceState.sos) {
+          deviceState.sos = false;
+          addTelemetryLog('SYS', 'SOS Reset via MQTT', 'Cleared from ESP32 Watch');
+          triggerAudioSiren(false);
+          renderUI();
         }
       }
-      if (topic === MQTT_LOC && p.lat) {
-        deviceState.lat = p.lat; deviceState.lon = p.lon;
-        updateMapPosition(p.lat, p.lon, 20);
-        addTelemetryLog('LOC', 'ESP32 GPS via MQTT', 'Lat: ' + p.lat + ' Lon: ' + p.lon);
+
+      if (topic === MQTT_LOC && payload.lat && payload.lat !== 'N/A') {
+        deviceState.lat = payload.lat;
+        deviceState.lon = payload.lon;
+        updateMapPosition(payload.lat, payload.lon, 20);
+        addTelemetryLog('LOC', 'ESP32 GPS via MQTT', `Lat: ${payload.lat}, Lon: ${payload.lon}`);
       }
+
       if (topic === MQTT_STATUS) {
-        deviceState.online = true; deviceState.wifi = 'Online (MQTT)';
-        deviceState.oled = p.oled || 'OK'; deviceState.uptime = p.uptime || 0;
+        deviceState.online = true;
+        deviceState.wifi   = 'Online (MQTT)';
+        deviceState.oled   = payload.oled || 'OK';
+        deviceState.uptime = payload.uptime || 0;
         renderUI();
       }
-    } catch(err) {}
+    } catch (err) {}
   });
 
-  mqttClient.on('error',     function(e) { addTelemetryLog('ERR', 'MQTT Error', e.message); });
-  mqttClient.on('reconnect', function()  { addTelemetryLog('SYS', 'MQTT Reconnecting', ''); });
+  mqttClient.on('error', (err) => {
+    updateMqttUI('error', 'MQTT Error', err.message);
+    addTelemetryLog('ERR', 'MQTT Error', err.message);
+  });
+
+  mqttClient.on('reconnect', () => {
+    updateMqttUI('connecting', 'Reconnecting...', 'Retrying MQTT Cloud connection');
+  });
 }
 
-function applyServerState(payload) {
-  const s = payload.state || {};
+function updateMqttUI(state, pillText, subText) {
+  const pill = document.getElementById('mqttPill');
+  const sub  = document.getElementById('mqttSub');
 
-  // Update device state from server
-  if (s.online !== undefined) deviceState.online = s.online;
-  if (s.wifi)      deviceState.wifi = s.wifi;
-  if (s.ip)        deviceState.ip   = s.ip;
-  if (s.oled)      deviceState.oled = s.oled;
-  if (s.uptime)    deviceState.uptime = s.uptime;
-  if (s.latitude  && s.latitude  !== 'N/A') { deviceState.lat = s.latitude; }
-  if (s.longitude && s.longitude !== 'N/A') { deviceState.lon = s.longitude; }
-
-  // ── HARDWARE SOS BUTTON DETECTED! ──────────────────────────────────────
-  if (payload.type === 'SOS_TRIGGERED') {
-    deviceState.sos          = true;
-    deviceState.sosTimestamp = s.sosTimestamp || Date.now();
-    onInstantSOSDetected(payload.source || 'Hardware Watch Button');
-    return;
+  if (pill) {
+    pill.className = `mqtt-status-pill ${state}`;
+    pill.textContent = pillText;
   }
-
-  if (payload.type === 'SOS_RESET') {
-    deviceState.sos = false;
-    addTelemetryLog('SYS', '✅ SOS Reset', 'Cleared from ESP32 or Web');
-    triggerAudioSiren(false);
-    renderUI();
-    return;
-  }
-
-  if (payload.type === 'DEVICE_ONLINE') {
-    addTelemetryLog('SYS', '📡 ESP32 Watch Online!', `IP: ${s.ip || '192.168.4.1'}`);
-    if (s.latitude && s.latitude !== 'N/A') {
-      updateMapPosition(s.latitude, s.longitude, 20);
-    }
-  }
-
-  if (payload.type === 'DEVICE_OFFLINE') {
-    addTelemetryLog('SYS', '⚠️ ESP32 Watch Offline', 'Connect PC to SafetyWatch Wi-Fi');
-  }
-
-  renderUI();
+  if (sub) sub.textContent = subText;
 }
 
-// Send GPS to server proxy (server pushes to ESP32 OLED)
-function sendLocationToProxy(lat, lon, acc) {
-  fetch(`/api/proxy/location?lat=${lat}&lon=${lon}&acc=${acc}`)
-    .catch(() => {});
-}
-
-// ---------------- SOS TRIGGER & WHATSAPP ALERT ENGINE ----------------
+// ── SOS TRIGGER & WHATSAPP ENGINE ────────────────────────────────────────
 function triggerSOSEvent() {
   deviceState.sos = true;
   deviceState.sosTimestamp = Date.now();
-  
-  // All commands route through server proxy — no direct ESP32 contact
-  fetch('/api/proxy/sos').catch(() => {});
 
-  onInstantSOSDetected('Web SOS Button Click');
+  // Publish to MQTT cloud broker if connected
+  if (mqttClient && mqttClient.connected) {
+    const payload = JSON.stringify({ sos: true, lat: deviceState.lat, lon: deviceState.lon, ts: Date.now() });
+    mqttClient.publish(MQTT_SOS, payload, { qos: 1 });
+  }
+
+  onInstantSOSDetected('Mobile Web SOS Button');
 }
 
 function onInstantSOSDetected(triggerSource) {
-  addTelemetryLog('SOS', '🚨 HARDWARE SOS DETECTED ON WEB!', `Source: ${triggerSource}`);
-  
+  addTelemetryLog('SOS', '🚨 SOS EMERGENCY ACTIVATED', `Source: ${triggerSource}`);
+
   triggerAudioSiren(true);
   renderUI();
   broadcastAutoWhatsAppEmergency(triggerSource);
 }
 
-function broadcastAutoWhatsAppEmergency(source = 'SOS Trigger') {
-  addTelemetryLog('SOS', 'Dispatching Emergency WhatsApp Alerts...', `Contacts: ${familyContacts.length}`);
+function broadcastAutoWhatsAppEmergency(source = 'SOS Emergency') {
+  addTelemetryLog('SOS', 'Dispatching Automated WhatsApp Alerts...', `Contacts count: ${familyContacts.length}`);
 
   fetch('/api/auto-dispatch-sos', {
     method: 'POST',
@@ -355,12 +357,12 @@ function broadcastAutoWhatsAppEmergency(source = 'SOS Trigger') {
       source: source
     })
   })
-  .then(r => r.json())
-  .then(data => {
-    addTelemetryLog('SOS', '✅ Automated WhatsApp API Delivered', `Targeted ${data.dispatchedCount || familyContacts.length} numbers.`);
+  .then((r) => r.json())
+  .then((data) => {
+    addTelemetryLog('SOS', '✅ CallMeBot API Dispatched', `Targeted ${data.dispatchedCount || familyContacts.length} numbers.`);
   })
-  .catch(err => {
-    addTelemetryLog('SOS', 'API Notice: Launching wa.me Backup', err.message);
+  .catch(() => {
+    addTelemetryLog('SOS', 'Launching wa.me WhatsApp Backup', 'Direct deep-link gateway active');
   });
 
   if (familyContacts.length > 0) {
@@ -371,7 +373,7 @@ function broadcastAutoWhatsAppEmergency(source = 'SOS Trigger') {
 function buildEmergencyMessage() {
   const mapsUrl = deviceState.mapsUrl || `https://maps.google.com/?q=${deviceState.lat},${deviceState.lon}`;
   const timestamp = new Date().toLocaleString();
-  
+
   return `🚨 EMERGENCY ALERT - SAFETY WATCH 🚨\n\n` +
          `HARDWARE SOS BUTTON PRESSED!\n` +
          `📅 Time: ${timestamp}\n` +
@@ -385,260 +387,35 @@ function sendWhatsAppToContact(phone) {
   const msg = encodeURIComponent(buildEmergencyMessage());
   const url = `https://wa.me/${cleanPhone}?text=${msg}`;
   window.open(url, '_blank');
-  addTelemetryLog('SOS', 'WhatsApp wa.me Gateway Launched', `Target: ${phone}`);
+  addTelemetryLog('SOS', 'WhatsApp Deep-Link Launched', `Target: ${phone}`);
 }
 
 function resetSOSState() {
   deviceState.sos = false;
-  lastSosState = false;
   addTelemetryLog('SYS', 'SOS Cleared', 'System returned to Normal');
   triggerAudioSiren(false);
 
-  // Route through server proxy
-  fetch('/api/proxy/reset').catch(() => {});
+  if (mqttClient && mqttClient.connected) {
+    mqttClient.publish(MQTT_SOS, JSON.stringify({ sos: false }), { qos: 1 });
+  }
 
   renderUI();
 }
 
 function triggerVibrationTest() {
-  addTelemetryLog('SYS', 'Vibration Test', 'Motor pulse (1.5s)');
-  fetch('/api/proxy/sos').catch(() => {});
-}
-
-// ---------------- WI-FI CONNECT & MOBILE DEEP-LINK HANDLERS ----------------
-function showWifiConnectModal() {
-  document.getElementById('wifiModal').style.display = 'flex';
-  addTelemetryLog('SYS', 'Wi-Fi Connect Dialog Opened', 'SSID: SafetyWatch | Pass: Jevin');
-}
-
-function closeWifiConnectModal() {
-  document.getElementById('wifiModal').style.display = 'none';
-}
-
-function triggerAutoWifiSettings() {
-  const ua = navigator.userAgent.toLowerCase();
-  if (ua.includes('android')) {
-    window.location.href = 'intent://#Intent;action=android.settings.WIFI_SETTINGS;end';
-  } else if (ua.includes('iphone') || ua.includes('ipad')) {
-    window.location.href = 'App-Prefs:root=WIFI';
-  } else if (ua.includes('win')) {
-    window.location.href = 'ms-settings:network-wifi';
+  if (navigator.vibrate) {
+    navigator.vibrate([300, 100, 300, 100, 500]);
+    addTelemetryLog('SYS', 'Vibration Haptic Pulse', 'Triggered mobile motor');
   } else {
-    alert('Please open your phone Wi-Fi settings, select "SafetyWatch", and enter password "Jevin".');
+    alert('Haptic vibration triggered!');
   }
 }
 
-function copyWifiPassword() {
-  navigator.clipboard.writeText('Jevin').then(() => {
-    alert('Password "Jevin" copied to clipboard!');
-  }).catch(() => alert('Password: Jevin'));
-}
-
-// initSSEStream() is defined above and replaces initMultiUserSyncStream()
-// The server now pushes ALL ESP32 state to the browser via SSE.
-
-function initMap() {
-  const defaultLat = parseFloat(deviceState.lat);
-  const defaultLon = parseFloat(deviceState.lon);
-
-  map = L.map('map').setView([defaultLat, defaultLon], 14);
-
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-    attribution: '&copy; OpenStreetMap &copy; CARTO',
-    subdomains: 'abcd',
-    maxZoom: 19
-  }).addTo(map);
-
-  const customIcon = L.divIcon({
-    className: 'custom-map-marker',
-    html: `<div style="width:22px; height:22px; background:#ff3b5c; border:3px solid #fff; border-radius:50%; box-shadow:0 0 20px #ff3b5c;"></div>`,
-    iconSize: [22, 22],
-    iconAnchor: [11, 11]
-  });
-
-  marker = L.marker([defaultLat, defaultLon], { icon: customIcon }).addTo(map);
-  marker.bindPopup('<b>SafetyWatch Device Location</b>').openPopup();
-
-  accuracyCircle = L.circle([defaultLat, defaultLon], {
-    color: '#00f2fe',
-    fillColor: '#00f2fe',
-    fillOpacity: 0.15,
-    radius: 50
-  }).addTo(map);
-}
-
-function updateMapPosition(lat, lon, accuracy = 20) {
-  const latNum = parseFloat(lat);
-  const lonNum = parseFloat(lon);
-  if (isNaN(latNum) || isNaN(lonNum)) return;
-
-  const newLatLng = new L.LatLng(latNum, lonNum);
-  marker.setLatLng(newLatLng);
-  accuracyCircle.setLatLng(newLatLng);
-  accuracyCircle.setRadius(parseFloat(accuracy) || 30);
-
-  map.panTo(newLatLng);
-
-  const mapsUrl = `https://maps.google.com/?q=${latNum},${lonNum}`;
-  deviceState.mapsUrl = mapsUrl;
-  
-  const mapsBtn = document.getElementById('googleMapsBtn');
-  mapsBtn.href = mapsUrl;
-  mapsBtn.classList.remove('disabled');
-
-  document.getElementById('latVal').textContent = latNum.toFixed(5);
-  document.getElementById('lonVal').textContent = lonNum.toFixed(5);
-  document.getElementById('accVal').textContent = `${accuracy}m`;
-  document.getElementById('lastLocTime').textContent = new Date().toLocaleTimeString();
-}
-
-function requestBrowserLocation() {
-  if (!navigator.geolocation) return alert('Geolocation not supported');
-  navigator.geolocation.getCurrentPosition(
-    (pos) => {
-      const lat = pos.coords.latitude.toString();
-      const lon = pos.coords.longitude.toString();
-      const acc = Math.round(pos.coords.accuracy).toString();
-
-      deviceState.lat = lat;
-      deviceState.lon = lon;
-      deviceState.accuracy = acc;
-
-      updateMapPosition(lat, lon, acc);
-      addTelemetryLog('LOC', 'Manual GPS Refresh', `Lat: ${lat}, Lon: ${lon}`);
-
-      if (currentMode === 'live') sendLocationToESP32(lat, lon, acc);
-    },
-    (err) => alert('Unable to retrieve location: ' + err.message),
-    { enableHighAccuracy: true }
-  );
-}
-
-function setMode(mode) {
-  // Mode buttons kept for UI compatibility — server always polls ESP32
-  currentMode = mode;
-  addTelemetryLog('SYS', 'Mode UI', `Display mode: ${mode}`);
-  renderUI();
-}
-
-function connectLiveDevice() {
-  addTelemetryLog('SYS', 'ESP32 Polling', 'Server is polling ESP32 at 192.168.4.1 every 400ms');
-}
-
-// ---------------- CONTACTS MANAGEMENT WITH +91 FORMATTING ----------------
-function toggleAddContactForm() {
-  const form = document.getElementById('addContactForm');
-  form.style.display = form.style.display === 'none' ? 'block' : 'none';
-}
-
-function formatIndianPhone(phone) {
-  let cleaned = phone.replace(/[^0-9+]/g, '');
-  if (/^[6-9]\d{9}$/.test(cleaned)) {
-    cleaned = '+91' + cleaned;
-  } else if (!cleaned.startsWith('+')) {
-    cleaned = '+91' + cleaned;
-  }
-  return cleaned;
-}
-
-function saveNewContact() {
-  const name = document.getElementById('contactName').value.trim();
-  let phone = document.getElementById('contactPhone').value.trim();
-  const apiKey = document.getElementById('contactApiKey').value.trim() || '123456';
-  const rel = document.getElementById('contactRelation').value.trim() || 'Family';
-
-  if (!name || !phone || phone === '+91') return alert('Please enter both contact name and phone number.');
-
-  phone = formatIndianPhone(phone);
-
-  const newContact = { id: Date.now().toString(), name, phone, apiKey, relation: rel };
-  familyContacts.push(newContact);
-  saveContactsToStorage();
-  renderContacts();
-
-  document.getElementById('contactName').value = '';
-  document.getElementById('contactPhone').value = '+91 ';
-  document.getElementById('contactApiKey').value = '';
-  document.getElementById('contactRelation').value = '';
-  toggleAddContactForm();
-
-  addTelemetryLog('SYS', 'Contact Saved (+91)', `${name} (${phone}) - Key: ${apiKey}`);
-}
-
-function deleteContact(id) {
-  familyContacts = familyContacts.filter(c => c.id !== id);
-  saveContactsToStorage();
-  renderContacts();
-  addTelemetryLog('SYS', 'Contact Deleted', `ID: ${id}`);
-}
-
-function saveContactsToStorage() {
-  localStorage.setItem('safetyWatchFamilyContacts', JSON.stringify(familyContacts));
-}
-
-function loadContactsFromStorage() {
-  const saved = localStorage.getItem('safetyWatchFamilyContacts');
-  if (saved) {
-    try { familyContacts = JSON.parse(saved); } catch(e) {}
-  }
-}
-
-function renderContacts() {
-  const grid = document.getElementById('contactsGrid');
-  if (familyContacts.length === 0) {
-    grid.innerHTML = `<p style="color:var(--text-muted); grid-column: 1/-1; text-align:center; padding:20px;">No family emergency contacts added yet. Click "Add Contact" above to configure your CallMeBot WhatsApp API keys.</p>`;
-    return;
-  }
-
-  grid.innerHTML = familyContacts.map(c => `
-    <div class="contact-card">
-      <div class="contact-info">
-        <h3>${escapeHtml(c.name)} <span class="contact-rel">${escapeHtml(c.relation)}</span></h3>
-        <p>🇮🇳 ${escapeHtml(c.phone)}</p>
-        <p style="font-size:10px; color:var(--accent-green); margin-top:2px;">🔑 CallMeBot API Key: ${escapeHtml(c.apiKey || '123456')}</p>
-        <button class="btn-test-api" onclick="testWhatsAppApiKey('${escapeHtml(c.phone)}', '${escapeHtml(c.apiKey)}', '${escapeHtml(c.name)}')">
-          🧪 Test WhatsApp API
-        </button>
-      </div>
-      <div class="contact-btns">
-        <button class="btn-del-contact" title="Delete Contact" onclick="deleteContact('${c.id}')">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-        </button>
-      </div>
-    </div>
-  `).join('');
-}
-
-function testWhatsAppApiKey(phone, apiKey, name) {
-  const cleanPhone = phone.replace(/[^0-9+]/g, '');
-  addTelemetryLog('SOS', 'Testing WhatsApp API Key...', `Target: ${name} (${cleanPhone})`);
-
-  fetch('/api/auto-dispatch-sos', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contacts: [{ name, phone: cleanPhone, apiKey }],
-      lat: deviceState.lat,
-      lon: deviceState.lon,
-      accuracy: deviceState.accuracy,
-      mapsUrl: deviceState.mapsUrl,
-      source: 'API Verification Test'
-    })
-  })
-  .then(r => r.json())
-  .then(data => {
-    alert(`✅ Test Message Sent to ${name} (${cleanPhone})!`);
-  })
-  .catch(err => {
-    sendWhatsAppToContact(cleanPhone);
-  });
-}
-
-// ---------------- AUDIO SIREN SYNTHESIZER ----------------
+// ── AUDIO SIREN SYNTHESIZER ──────────────────────────────────────────────
 function toggleAudioSiren() {
   isSirenMuted = !isSirenMuted;
   const btn = document.getElementById('sirenSoundBtn');
-  btn.classList.toggle('active-siren', !isSirenMuted);
+  if (btn) btn.style.opacity = isSirenMuted ? '0.4' : '1';
 
   if (isSirenMuted && sirenOsc) {
     triggerAudioSiren(false);
@@ -658,7 +435,7 @@ function triggerAudioSiren(enable) {
 
     sirenOsc.type = 'sawtooth';
     sirenOsc.frequency.setValueAtTime(600, audioCtx.currentTime);
-    
+
     let high = false;
     setInterval(() => {
       if (sirenOsc && audioCtx) {
@@ -680,90 +457,257 @@ function triggerAudioSiren(enable) {
   }
 }
 
-// ---------------- UI & OLED MIRROR ----------------
-function renderUI() {
-  const banner = document.getElementById('sosEmergencyBanner');
-  banner.classList.toggle('show', deviceState.sos);
-  
-  if (deviceState.sos) {
-    document.getElementById('sosBannerTime').textContent = `Activated at ${new Date(deviceState.sosTimestamp || Date.now()).toLocaleTimeString()}`;
-  }
+// ── UI RENDERING & TAB NAVIGATION ────────────────────────────────────────
+function switchTab(tabName) {
+  document.querySelectorAll('.tab-section').forEach((el) => el.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach((el) => el.classList.remove('active'));
 
-  document.getElementById('deviceStatusText').textContent = deviceState.online ? 'Online' : 'Offline';
-  document.getElementById('dotDevice').className = `status-dot ${deviceState.online ? 'ok' : 'bad'}`;
-  document.getElementById('deviceIpText').textContent = `IP: ${deviceState.ip}`;
+  const tab = document.getElementById(`tab-${tabName}`);
+  const nav = document.getElementById(`nav-${tabName}`);
 
-  document.getElementById('wifiStatusText').textContent = deviceState.wifi;
-  document.getElementById('dotWifi').className = `status-dot ${deviceState.online ? 'ok' : 'bad'}`;
+  if (tab) tab.classList.add('active');
+  if (nav) nav.classList.add('active');
 
-  document.getElementById('sosStatusText').textContent = deviceState.sos ? 'EMERGENCY' : 'NORMAL';
-  document.getElementById('sosStatusText').style.color = deviceState.sos ? 'var(--accent-danger)' : 'var(--text-main)';
-  document.getElementById('dotSos').className = `status-dot ${deviceState.sos ? 'bad' : 'ok'}`;
-
-  document.getElementById('oledStatusText').textContent = deviceState.oled;
-  document.getElementById('dotOled').className = `status-dot ${deviceState.oled === 'OK' ? 'ok' : 'bad'}`;
-
-  document.getElementById('batteryText').textContent = `${deviceState.battery}%`;
-  document.getElementById('batteryBar').style.width = `${deviceState.battery}%`;
-
-  const oledEl = document.getElementById('oledScreen');
-  
-  if (deviceState.sos) {
-    const isFlashOn = Math.floor(Date.now() / 500) % 2 === 0;
-    oledEl.className = 'oled-screen-content flashing';
-    if (isFlashOn) {
-      oledEl.innerHTML = `
-        <div class="oled-line font-header">**************</div>
-        <div class="oled-line" style="font-size:16px; font-weight:bold; color:#ff3b5c;">EMERGENCY</div>
-        <div class="oled-line" style="font-size:16px; font-weight:bold; color:#ff3b5c;">HELP NEEDED</div>
-        <div class="oled-line font-header">**************</div>
-      `;
-    } else {
-      oledEl.innerHTML = `<div style="height:100px;"></div>`;
-    }
-  } else {
-    oledEl.className = 'oled-screen-content';
-    oledEl.innerHTML = `
-      <div class="oled-line font-header">Safety Watch</div>
-      <div class="oled-line">WiFi: ${deviceState.wifi}</div>
-      <div class="oled-line">IP: ${deviceState.ip}</div>
-      <div class="oled-line">Lat: ${deviceState.lat.substring(0, 7)}</div>
-      <div class="oled-line">Lon: ${deviceState.lon.substring(0, 7)}</div>
-      <div class="oled-line">SOS: ${deviceState.sos ? 'ACTIVE' : 'Normal'}</div>
-      <div class="oled-line">Up: ${deviceState.uptime}s</div>
-    `;
+  if (tabName === 'map' && map) {
+    setTimeout(() => map.invalidateSize(), 200);
   }
 }
 
+function renderUI() {
+  // SOS Banner
+  const banner = document.getElementById('sosBanner');
+  if (banner) banner.classList.toggle('show', deviceState.sos);
+
+  if (deviceState.sos) {
+    const bannerTime = document.getElementById('sosBannerTime');
+    if (bannerTime) bannerTime.textContent = `Activated at ${new Date(deviceState.sosTimestamp || Date.now()).toLocaleTimeString()}`;
+  }
+
+  // Header stats
+  const hdrDevDot = document.getElementById('hdrDevDot');
+  const hdrDevice = document.getElementById('hdrDevice');
+  if (hdrDevDot) hdrDevDot.className = `stat-dot ${deviceState.online ? 'dot-on' : 'dot-off'}`;
+  if (hdrDevice) hdrDevice.textContent = deviceState.online ? 'Connected' : 'Offline';
+
+  const hdrGpsDot = document.getElementById('hdrGpsDot');
+  const hdrGps    = document.getElementById('hdrGps');
+  if (hdrGpsDot) hdrGpsDot.className = `stat-dot ${deviceState.gpsActive ? 'dot-on' : 'dot-off'}`;
+  if (hdrGps)    hdrGps.textContent    = deviceState.gpsActive ? 'Active' : 'Searching';
+
+  const hdrSosDot = document.getElementById('hdrSosDot');
+  const hdrSos    = document.getElementById('hdrSos');
+  if (hdrSosDot) hdrSosDot.className = `stat-dot ${deviceState.sos ? 'dot-off' : 'dot-on'}`;
+  if (hdrSos)    hdrSos.textContent  = deviceState.sos ? 'EMERGENCY' : 'Normal';
+
+  // Status Cards
+  const devTxt = document.getElementById('deviceStatusText');
+  const dotDev = document.getElementById('dotDevice');
+  if (devTxt) devTxt.textContent = deviceState.online ? 'Online ✓' : 'Offline';
+  if (dotDev) dotDev.className   = `sc-dot ${deviceState.online ? 'ok' : 'bad'}`;
+
+  const gpsTxt = document.getElementById('gpsStatusText');
+  const dotGps = document.getElementById('dotGps');
+  if (gpsTxt) gpsTxt.textContent = deviceState.gpsActive ? 'Active ✓' : 'Searching';
+  if (dotGps) dotGps.className   = `sc-dot ${deviceState.gpsActive ? 'ok' : 'bad'}`;
+
+  const sosTxt = document.getElementById('sosStatusText');
+  const dotSos = document.getElementById('dotSos');
+  if (sosTxt) {
+    sosTxt.textContent = deviceState.sos ? 'EMERGENCY' : 'Normal';
+    sosTxt.style.color = deviceState.sos ? 'var(--red)' : 'var(--text-1)';
+  }
+  if (dotSos) dotSos.className = `sc-dot ${deviceState.sos ? 'bad' : 'ok'}`;
+
+  // GPS Map Pill
+  const gpsPill = document.getElementById('gpsPill');
+  const gpsAcc  = document.getElementById('gpsAccText');
+  if (gpsPill) gpsPill.className = `gps-pill ${deviceState.gpsActive ? '' : 'off'}`;
+  if (gpsAcc)  gpsAcc.textContent  = deviceState.gpsActive ? `Accuracy: ~${deviceState.accuracy}` : 'Searching...';
+
+  // OLED Display Mirror
+  const oledEl = document.getElementById('oledScreen');
+  if (oledEl) {
+    if (deviceState.sos) {
+      oledEl.innerHTML = `🚨 EMERGENCY ALERT 🚨\nHELP NEEDED NOW!\nLat: ${deviceState.lat.substring(0, 7)}\nLon: ${deviceState.lon.substring(0, 7)}`;
+    } else {
+      oledEl.innerHTML = `SafetyWatch AI\nWiFi: ${deviceState.wifi}\nSOS: Normal\nLat: ${deviceState.lat.substring(0, 7)}\nLon: ${deviceState.lon.substring(0, 7)}`;
+    }
+  }
+}
+
+// ── CONTACTS MANAGEMENT ─────────────────────────────────────────────────
+function toggleAddForm() {
+  const form = document.getElementById('addForm');
+  if (form) form.classList.toggle('show');
+}
+
+function formatIndianPhone(phone) {
+  let cleaned = phone.replace(/[^0-9+]/g, '');
+  if (/^[6-9]\d{9}$/.test(cleaned)) {
+    cleaned = '+91' + cleaned;
+  } else if (!cleaned.startsWith('+')) {
+    cleaned = '+91' + cleaned;
+  }
+  return cleaned;
+}
+
+function saveContact() {
+  const nameEl = document.getElementById('cName');
+  const phoneEl = document.getElementById('cPhone');
+  const keyEl = document.getElementById('cApiKey');
+  const relEl = document.getElementById('cRelation');
+
+  const name = nameEl ? nameEl.value.trim() : '';
+  let phone = phoneEl ? phoneEl.value.trim() : '';
+  const apiKey = keyEl ? keyEl.value.trim() || '123456' : '123456';
+  const rel = relEl ? relEl.value.trim() || 'Family' : 'Family';
+
+  if (!name || !phone || phone === '+91') {
+    return alert('Please enter both name and phone number.');
+  }
+
+  phone = formatIndianPhone(phone);
+
+  const newContact = { id: Date.now().toString(), name, phone, apiKey, relation: rel };
+  familyContacts.push(newContact);
+  saveContactsToStorage();
+  renderContacts();
+
+  if (nameEl) nameEl.value = '';
+  if (phoneEl) phoneEl.value = '+91 ';
+  if (keyEl) keyEl.value = '';
+  if (relEl) relEl.value = '';
+  toggleAddForm();
+
+  addTelemetryLog('SYS', 'Contact Saved', `${name} (${phone})`);
+}
+
+function deleteContact(id) {
+  familyContacts = familyContacts.filter((c) => c.id !== id);
+  saveContactsToStorage();
+  renderContacts();
+  addTelemetryLog('SYS', 'Contact Deleted', `ID: ${id}`);
+}
+
+function saveContactsToStorage() {
+  localStorage.setItem('safetyWatchFamilyContacts', JSON.stringify(familyContacts));
+}
+
+function loadContactsFromStorage() {
+  const saved = localStorage.getItem('safetyWatchFamilyContacts');
+  if (saved) {
+    try { familyContacts = JSON.parse(saved); } catch (e) {}
+  }
+}
+
+const AVATAR_COLORS = ['av-purple', 'av-orange', 'av-pink', 'av-teal', 'av-blue'];
+
+function renderContacts() {
+  const grid = document.getElementById('contactsGrid');
+  if (!grid) return;
+
+  if (familyContacts.length === 0) {
+    grid.innerHTML = `<div style="text-align:center; padding:24px; color:var(--text-2); font-size:13px;">No emergency contacts added yet. Tap below to add your family members.</div>`;
+    return;
+  }
+
+  grid.innerHTML = familyContacts.map((c, idx) => {
+    const colorClass = AVATAR_COLORS[idx % AVATAR_COLORS.length];
+    const initial = escapeHtml(c.name.charAt(0).toUpperCase());
+
+    return `
+      <div class="contact-card">
+        <div class="contact-avatar ${colorClass}">${initial}</div>
+        <div class="contact-info">
+          <div class="contact-name">${escapeHtml(c.name)}</div>
+          <div class="contact-phone">🇮🇳 ${escapeHtml(c.phone)}</div>
+          <div class="contact-key">🔑 CallMeBot API Key: ${escapeHtml(c.apiKey || '123456')}</div>
+        </div>
+        <div class="contact-actions">
+          <button class="contact-test-btn" onclick="testWhatsAppApiKey('${escapeHtml(c.phone)}', '${escapeHtml(c.apiKey)}', '${escapeHtml(c.name)}')">🧪 Test</button>
+          <button class="contact-del-btn" onclick="deleteContact('${c.id}')">🗑</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function testWhatsAppApiKey(phone, apiKey, name) {
+  const cleanPhone = phone.replace(/[^0-9+]/g, '');
+  addTelemetryLog('SOS', 'Testing WhatsApp API...', `${name} (${cleanPhone})`);
+
+  fetch('/api/auto-dispatch-sos', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contacts: [{ name, phone: cleanPhone, apiKey }],
+      lat: deviceState.lat,
+      lon: deviceState.lon,
+      accuracy: deviceState.accuracy,
+      mapsUrl: deviceState.mapsUrl,
+      source: 'Verification Test'
+    })
+  })
+  .then(() => alert(`✅ Test Message Sent to ${name} (${cleanPhone})!`))
+  .catch(() => sendWhatsAppToContact(cleanPhone));
+}
+
+// ── WI-FI MODAL HANDLERS ────────────────────────────────────────────────
+function showWifiModal() {
+  const modal = document.getElementById('wifiModal');
+  if (modal) modal.classList.add('show');
+}
+
+function closeWifiModal() {
+  const modal = document.getElementById('wifiModal');
+  if (modal) modal.classList.remove('show');
+}
+
+function openWifiSettings() {
+  const ua = navigator.userAgent.toLowerCase();
+  if (ua.includes('android')) {
+    window.location.href = 'intent://#Intent;action=android.settings.WIFI_SETTINGS;end';
+  } else if (ua.includes('iphone') || ua.includes('ipad')) {
+    window.location.href = 'App-Prefs:root=WIFI';
+  } else {
+    alert('Please open your phone Settings → Wi-Fi, connect to "SafetyWatch" with password "Jevin".');
+  }
+}
+
+function copyWifiPass() {
+  navigator.clipboard.writeText('Jevin').then(() => {
+    alert('Password "Jevin" copied to clipboard!');
+  }).catch(() => alert('Password: Jevin'));
+}
+
+// ── LOG ENGINE ───────────────────────────────────────────────────────────
 function addTelemetryLog(source, eventType, details) {
-  const item = { time: new Date().toLocaleTimeString(), source, type: eventType, details };
+  const item = { time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }), source, type: eventType, details };
   telemetryLogs.unshift(item);
   if (telemetryLogs.length > 50) telemetryLogs.pop();
 
-  const tbody = document.getElementById('logTableBody');
-  const typeClass = source === 'SOS' ? 'log-type-sos' : (source === 'LOC' ? 'log-type-loc' : 'log-type-sys');
+  const container = document.getElementById('logEntries');
+  if (!container) return;
 
-  tbody.innerHTML = telemetryLogs.map(l => `
-    <tr>
-      <td>${l.time}</td>
-      <td><span class="${typeClass}">${l.source}</span></td>
-      <td>${escapeHtml(l.type)}</td>
-      <td>${escapeHtml(l.details)}</td>
-    </tr>
+  const tagClass = source === 'SOS' ? 'tag-sos' : (source === 'LOC' ? 'tag-loc' : (source === 'ERR' ? 'tag-err' : 'tag-sys'));
+  const entryClass = source === 'SOS' ? 'sos' : (source === 'LOC' ? 'loc' : '');
+
+  container.innerHTML = telemetryLogs.map((l) => `
+    <div class="log-entry ${entryClass}">
+      <span class="log-tag ${tagClass}">${l.source}</span>
+      <div class="log-text">
+        <strong>${escapeHtml(l.type)}</strong>
+        <div style="color:var(--text-2); font-size:11px; margin-top:2px;">${escapeHtml(l.details || '')}</div>
+      </div>
+      <div class="log-time">${l.time}</div>
+    </div>
   `).join('');
 }
 
 function clearLogs() {
   telemetryLogs = [];
-  document.getElementById('logTableBody').innerHTML = '';
-}
-
-function exportLogsJSON() {
-  const blob = new Blob([JSON.stringify(telemetryLogs, null, 2)], { type: 'application/json' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = `safetywatch_telemetry_${Date.now()}.json`;
-  a.click();
+  const container = document.getElementById('logEntries');
+  if (container) container.innerHTML = '';
 }
 
 function escapeHtml(str) {

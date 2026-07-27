@@ -2,524 +2,870 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-  <meta http-equiv="Pragma" content="no-cache">
-  <meta http-equiv="Expires" content="0">
-  <meta name="description" content="SafetyWatch AI — Women's Safety Dashboard with Hardware SOS, Real-Time GPS, and WhatsApp Emergency Alerts.">
-  <title>SafetyWatch AI — Women's Safety Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#7C3AED">
+  <meta name="description" content="SafetyWatch AI — Women's Safety Dashboard with SOS Alerts and GPS Tracking">
+  <title>SafetyWatch AI</title>
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
-  <link rel="stylesheet" href="style.css?v=20260728_v4">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
 
   <style>
-    /* ── PERMISSION SPLASH SCREEN ─────────────────────────────────────── */
-    #permSplash {
-      position: fixed; inset: 0; z-index: 9999;
-      background: radial-gradient(ellipse at 40% 30%, #1a0a2e 0%, #0a0a14 70%);
-      display: flex; align-items: center; justify-content: center;
-      flex-direction: column; gap: 0; padding: 20px;
-      animation: splashIn 0.4s ease;
-    }
-    @keyframes splashIn { from { opacity: 0; transform: scale(0.97); } to { opacity: 1; transform: scale(1); } }
-    #permSplash.hiding {
-      animation: splashOut 0.5s ease forwards;
-    }
-    @keyframes splashOut { to { opacity: 0; transform: scale(1.02); pointer-events: none; } }
-
-    .splash-card {
-      background: rgba(255,255,255,0.04);
-      border: 1px solid rgba(255,255,255,0.1);
-      border-radius: 24px;
-      padding: 40px 36px;
-      max-width: 420px;
-      width: 100%;
-      text-align: center;
-      box-shadow: 0 30px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,60,100,0.1);
-      backdrop-filter: blur(20px);
+    /* ═══════════════════════════════════════════
+       DESIGN TOKENS
+    ═══════════════════════════════════════════ */
+    :root {
+      --purple-1: #7C3AED;
+      --purple-2: #9D5CF6;
+      --purple-3: #C084FC;
+      --purple-light: #EDE9FE;
+      --pink:   #EC4899;
+      --orange: #F97316;
+      --teal:   #14B8A6;
+      --green:  #22C55E;
+      --blue:   #3B82F6;
+      --yellow: #EAB308;
+      --red:    #EF4444;
+      --bg:     #F5F3FF;
+      --card:   #FFFFFF;
+      --text-1: #1E1B4B;
+      --text-2: #6B7280;
+      --radius: 20px;
+      --shadow: 0 4px 24px rgba(124,58,237,0.12);
     }
 
-    .splash-shield {
-      width: 80px; height: 80px;
-      background: linear-gradient(135deg, #ff3b5c, #ff6b35);
-      border-radius: 50%;
-      display: flex; align-items: center; justify-content: center;
-      margin: 0 auto 20px;
-      box-shadow: 0 0 40px rgba(255,59,92,0.5);
-      animation: shieldPulse 2s ease-in-out infinite;
-    }
-    @keyframes shieldPulse {
-      0%, 100% { box-shadow: 0 0 30px rgba(255,59,92,0.4); }
-      50% { box-shadow: 0 0 60px rgba(255,59,92,0.8); }
-    }
+    * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
 
-    .splash-title {
+    body {
       font-family: 'Outfit', sans-serif;
-      font-size: 26px; font-weight: 800;
-      color: #fff; margin: 0 0 6px;
-      letter-spacing: -0.5px;
-    }
-    .splash-sub {
-      font-size: 14px; color: rgba(255,255,255,0.55);
-      margin: 0 0 28px; line-height: 1.5;
+      background: var(--bg);
+      color: var(--text-1);
+      min-height: 100dvh;
+      overflow-x: hidden;
     }
 
-    .perm-list {
-      list-style: none; padding: 0; margin: 0 0 28px;
-      text-align: left;
-      display: flex; flex-direction: column; gap: 10px;
+    /* ═══════════════════════════════════════════
+       PERMISSION SPLASH
+    ═══════════════════════════════════════════ */
+    #splash {
+      position: fixed; inset: 0; z-index: 9999;
+      background: linear-gradient(160deg, #5B21B6 0%, #7C3AED 45%, #A855F7 100%);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: 32px 24px;
+      animation: fadeIn 0.5s ease;
     }
-    .perm-item {
-      display: flex; align-items: center; gap: 12px;
-      background: rgba(255,255,255,0.05);
-      border-radius: 12px; padding: 12px 14px;
-      border: 1px solid rgba(255,255,255,0.07);
+    #splash.exit { animation: splashOut 0.6s ease forwards; }
+    @keyframes fadeIn    { from { opacity:0; transform:scale(0.97); } to { opacity:1; transform:scale(1); } }
+    @keyframes splashOut { to   { opacity:0; transform:scale(1.04); pointer-events:none; } }
+
+    .splash-logo {
+      width: 90px; height: 90px;
+      background: rgba(255,255,255,0.15);
+      border-radius: 28px;
+      display: flex; align-items: center; justify-content: center;
+      margin-bottom: 20px;
+      backdrop-filter: blur(12px);
+      border: 1.5px solid rgba(255,255,255,0.3);
+      animation: pulse 2s ease-in-out infinite;
     }
-    .perm-icon {
+    @keyframes pulse {
+      0%,100% { box-shadow: 0 0 0 0 rgba(255,255,255,0.3); }
+      50%      { box-shadow: 0 0 0 18px rgba(255,255,255,0); }
+    }
+
+    .splash-title { color:#fff; font-size:30px; font-weight:800; letter-spacing:-0.5px; }
+    .splash-sub   { color:rgba(255,255,255,0.7); font-size:14px; margin:6px 0 32px; text-align:center; }
+
+    .perm-card {
+      background: rgba(255,255,255,0.12);
+      border: 1px solid rgba(255,255,255,0.2);
+      backdrop-filter: blur(20px);
+      border-radius: 20px;
+      padding: 20px;
+      width: 100%; max-width: 360px;
+      margin-bottom: 20px;
+    }
+
+    .perm-row {
+      display: flex; align-items: center; gap: 14px;
+      padding: 12px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+    .perm-row:last-child { border-bottom: none; padding-bottom: 0; }
+    .perm-row:first-child { padding-top: 0; }
+
+    .perm-icon-box {
+      width: 42px; height: 42px; border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px; flex-shrink: 0;
+    }
+    .perm-icon-box.loc  { background: rgba(255,255,255,0.15); }
+    .perm-icon-box.noti { background: rgba(255,220,80,0.2); }
+    .perm-icon-box.vib  { background: rgba(100,255,180,0.15); }
+
+    .perm-info { flex: 1; }
+    .perm-info strong { color: #fff; font-size: 14px; font-weight: 600; display: block; }
+    .perm-info span   { color: rgba(255,255,255,0.55); font-size: 12px; }
+
+    .perm-badge {
+      font-size: 11px; font-weight: 700; padding: 4px 10px;
+      border-radius: 99px; white-space: nowrap;
+    }
+    .perm-badge.wait    { background: rgba(255,255,255,0.15); color: rgba(255,255,255,0.6); }
+    .perm-badge.granted { background: rgba(34,197,94,0.25);   color: #4ADE80; }
+    .perm-badge.denied  { background: rgba(239,68,68,0.25);   color: #FCA5A5; }
+
+    #btnGrant {
+      width: 100%; max-width: 360px;
+      padding: 18px;
+      background: #fff;
+      color: var(--purple-1);
+      border: none; border-radius: 16px;
+      font-family: 'Outfit', sans-serif;
+      font-size: 17px; font-weight: 800;
+      cursor: pointer;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+      transition: transform 0.15s, box-shadow 0.15s;
+      letter-spacing: -0.2px;
+    }
+    #btnGrant:hover  { transform: translateY(-2px); box-shadow: 0 12px 40px rgba(0,0,0,0.25); }
+    #btnGrant:active { transform: scale(0.98); }
+    #btnGrant:disabled { opacity: 0.7; cursor: not-allowed; }
+
+    /* ═══════════════════════════════════════════
+       MAIN APP (hidden until splash exits)
+    ═══════════════════════════════════════════ */
+    #app { display: none; flex-direction: column; min-height: 100dvh; }
+    #app.show { display: flex; }
+
+    /* ── HEADER ─────────────────────────────────── */
+    .app-header {
+      background: linear-gradient(135deg, #5B21B6 0%, #7C3AED 50%, #A855F7 100%);
+      padding: 52px 20px 28px;
+      position: relative; overflow: hidden;
+    }
+    .app-header::before {
+      content: ''; position: absolute;
+      width: 200px; height: 200px; border-radius: 50%;
+      background: rgba(255,255,255,0.06);
+      top: -60px; right: -40px;
+    }
+    .app-header::after {
+      content: ''; position: absolute;
+      width: 120px; height: 120px; border-radius: 50%;
+      background: rgba(255,255,255,0.04);
+      bottom: -30px; left: 30px;
+    }
+
+    .header-row { display: flex; align-items: center; justify-content: space-between; position: relative; z-index: 1; }
+    .header-brand { display: flex; align-items: center; gap: 12px; }
+    .brand-icon {
+      width: 44px; height: 44px; background: rgba(255,255,255,0.2);
+      border-radius: 14px; display: flex; align-items: center; justify-content: center;
+      border: 1.5px solid rgba(255,255,255,0.3);
+    }
+    .brand-name  { color: #fff; font-size: 20px; font-weight: 800; letter-spacing: -0.3px; }
+    .brand-sub   { color: rgba(255,255,255,0.6); font-size: 12px; font-weight: 400; margin-top: 1px; }
+
+    .header-sound-btn {
+      width: 40px; height: 40px; border-radius: 12px;
+      background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.25);
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      color: #fff; transition: background 0.2s;
+    }
+    .header-sound-btn:hover { background: rgba(255,255,255,0.25); }
+
+    /* Stats bar inside header */
+    .stats-bar {
+      display: flex; gap: 0; margin-top: 22px;
+      background: rgba(255,255,255,0.12); border-radius: 16px;
+      border: 1px solid rgba(255,255,255,0.18);
+      overflow: hidden; position: relative; z-index: 1;
+    }
+    .stat-item {
+      flex: 1; text-align: center; padding: 14px 8px;
+      border-right: 1px solid rgba(255,255,255,0.1);
+    }
+    .stat-item:last-child { border-right: none; }
+    .stat-val  { color: #fff; font-size: 20px; font-weight: 800; }
+    .stat-lbl  { color: rgba(255,255,255,0.6); font-size: 11px; font-weight: 500; margin-top: 2px; }
+    .stat-dot  { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 4px; vertical-align: middle; }
+    .dot-on    { background: #4ADE80; box-shadow: 0 0 6px #4ADE80; }
+    .dot-off   { background: #F87171; }
+    .dot-warn  { background: #FBBF24; }
+
+    /* ── SOS EMERGENCY BANNER ───────────────────── */
+    .sos-banner {
+      display: none;
+      background: linear-gradient(135deg, #DC2626, #EF4444);
+      padding: 14px 20px;
+      animation: bannerSlide 0.4s ease;
+    }
+    .sos-banner.show { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    @keyframes bannerSlide { from { transform: translateY(-100%); opacity:0; } to { transform: translateY(0); opacity:1; } }
+    .sos-banner-left { display: flex; align-items: center; gap: 10px; }
+    .sos-siren { font-size: 22px; animation: sirenBounce 0.5s ease-in-out infinite alternate; }
+    @keyframes sirenBounce { from { transform: scale(1); } to { transform: scale(1.2); } }
+    .sos-banner-title { color: #fff; font-size: 14px; font-weight: 700; }
+    .sos-banner-sub   { color: rgba(255,255,255,0.8); font-size: 11px; margin-top: 2px; }
+    .sos-clear-btn {
+      background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3);
+      color: #fff; border-radius: 10px; padding: 6px 14px;
+      font-family: 'Outfit', sans-serif; font-size: 12px; font-weight: 700;
+      cursor: pointer; white-space: nowrap;
+    }
+
+    /* ── MAIN SCROLL AREA ───────────────────────── */
+    .main-scroll { flex: 1; overflow-y: auto; padding: 16px 16px 100px; }
+    .main-scroll::-webkit-scrollbar { display: none; }
+
+    /* ── SECTION LABEL ──────────────────────────── */
+    .section-label { font-size: 16px; font-weight: 700; color: var(--text-1); margin: 20px 0 10px; }
+
+    /* ── QUICK STATUS CARDS ─────────────────────── */
+    .status-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+    .status-card {
+      background: var(--card); border-radius: 18px;
+      padding: 16px; box-shadow: var(--shadow);
+      border: 1.5px solid transparent;
+      transition: transform 0.2s;
+    }
+    .status-card:active { transform: scale(0.97); }
+    .status-card.purple-border { border-color: var(--purple-light); }
+
+    .sc-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+    .sc-icon {
       width: 36px; height: 36px; border-radius: 10px;
       display: flex; align-items: center; justify-content: center;
-      font-size: 18px; flex-shrink: 0;
+      font-size: 18px;
     }
-    .perm-icon.loc  { background: rgba(0,210,254,0.15); }
-    .perm-icon.noti { background: rgba(255,170,50,0.15); }
-    .perm-icon.cam  { background: rgba(140,100,255,0.15); }
-    .perm-text { flex: 1; }
-    .perm-text strong { color: #fff; font-size: 13px; display: block; }
-    .perm-text span   { color: rgba(255,255,255,0.45); font-size: 11px; }
-    .perm-status { font-size: 11px; font-weight: 600; }
-    .perm-status.wait    { color: rgba(255,255,255,0.3); }
-    .perm-status.granted { color: #4cd964; }
-    .perm-status.denied  { color: #ff3b5c; }
+    .sc-icon.purple { background: var(--purple-light); }
+    .sc-icon.green  { background: #DCFCE7; }
+    .sc-icon.orange { background: #FFF7ED; }
+    .sc-icon.blue   { background: #EFF6FF; }
+    .sc-icon.pink   { background: #FDF2F8; }
+    .sc-icon.teal   { background: #F0FDFA; }
 
-    #btnGrantAll {
-      width: 100%;
-      padding: 16px;
-      background: linear-gradient(135deg, #ff3b5c, #ff6b35);
-      color: #fff;
-      border: none; border-radius: 14px;
+    .sc-dot { width: 8px; height: 8px; border-radius: 50%; }
+    .sc-dot.ok   { background: #22C55E; box-shadow: 0 0 6px #22C55E66; }
+    .sc-dot.bad  { background: #EF4444; }
+    .sc-dot.warn { background: #F59E0B; }
+
+    .sc-val  { font-size: 17px; font-weight: 800; color: var(--text-1); }
+    .sc-lbl  { font-size: 11px; color: var(--text-2); font-weight: 500; margin-top: 2px; }
+
+    /* ── BIG SOS BUTTON ─────────────────────────── */
+    .sos-section { margin: 4px 0; }
+    .big-sos-wrap {
+      background: linear-gradient(135deg, #DC2626, #EF4444, #F97316);
+      border-radius: 24px; padding: 4px;
+      box-shadow: 0 8px 32px rgba(239,68,68,0.4);
+    }
+    .big-sos-btn {
+      width: 100%; padding: 22px;
+      background: linear-gradient(135deg, #EF4444, #DC2626);
+      border: none; border-radius: 20px;
+      display: flex; align-items: center; justify-content: center; gap: 14px;
+      cursor: pointer; transition: transform 0.15s;
       font-family: 'Outfit', sans-serif;
-      font-size: 16px; font-weight: 700;
+    }
+    .big-sos-btn:active { transform: scale(0.97); }
+    .sos-btn-icon {
+      width: 52px; height: 52px; border-radius: 50%;
+      background: rgba(255,255,255,0.2); border: 2px solid rgba(255,255,255,0.4);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 24px; animation: sosPulse 2s ease-in-out infinite;
+    }
+    @keyframes sosPulse {
+      0%,100% { box-shadow: 0 0 0 0 rgba(255,255,255,0.4); }
+      50%      { box-shadow: 0 0 0 12px rgba(255,255,255,0); }
+    }
+    .sos-btn-text  { color: #fff; font-size: 22px; font-weight: 900; letter-spacing: 2px; }
+    .sos-btn-sub   { color: rgba(255,255,255,0.75); font-size: 11px; font-weight: 500; margin-top: 3px; letter-spacing: 0.5px; }
+
+    .sos-sub-btns { display: flex; gap: 10px; margin-top: 10px; }
+    .sos-sub-btn {
+      flex: 1; padding: 12px;
+      background: var(--card); border-radius: 14px;
+      border: 1.5px solid #E5E7EB;
+      font-family: 'Outfit', sans-serif;
+      font-size: 13px; font-weight: 600; color: var(--text-2);
+      cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px;
+      transition: all 0.2s;
+    }
+    .sos-sub-btn:active { transform: scale(0.97); }
+    .sos-sub-btn.danger { color: var(--red); border-color: #FCA5A5; }
+
+    /* ── GPS MAP CARD ───────────────────────────── */
+    .map-card {
+      background: var(--card); border-radius: 22px;
+      overflow: hidden; box-shadow: var(--shadow);
+    }
+    .map-card-header {
+      padding: 16px 16px 12px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .map-card-title { font-size: 15px; font-weight: 700; }
+    .gps-pill {
+      display: flex; align-items: center; gap: 6px;
+      background: #DCFCE7; color: #16A34A;
+      border-radius: 99px; padding: 5px 12px;
+      font-size: 12px; font-weight: 600;
+    }
+    .gps-pill.off { background: #FEE2E2; color: #DC2626; }
+    .gps-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; animation: gpsBlink 1.2s ease infinite; }
+    @keyframes gpsBlink { 0%,100%{opacity:1;} 50%{opacity:0.3;} }
+
+    #map { height: 180px; }
+
+    .coords-row {
+      padding: 12px 16px;
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 8px; border-top: 1px solid #F3F4F6;
+    }
+    .coord-chip { background: #F9FAFB; border-radius: 10px; padding: 8px 12px; }
+    .coord-chip-lbl { font-size: 10px; color: var(--text-2); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+    .coord-chip-val { font-size: 13px; font-weight: 700; color: var(--text-1); margin-top: 2px; font-family: monospace; }
+
+    .map-actions { display: flex; gap: 8px; padding: 0 16px 16px; }
+    .map-btn {
+      flex: 1; padding: 10px;
+      border: none; border-radius: 12px;
+      font-family: 'Outfit', sans-serif;
+      font-size: 13px; font-weight: 600;
+      cursor: pointer; transition: all 0.2s;
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+    }
+    .map-btn.primary { background: var(--purple-1); color: #fff; }
+    .map-btn.secondary { background: var(--purple-light); color: var(--purple-1); text-decoration: none; }
+
+    /* ── CONTACTS ───────────────────────────────── */
+    .contact-list { display: flex; flex-direction: column; gap: 10px; }
+
+    .contact-card {
+      background: var(--card); border-radius: 18px;
+      padding: 16px; display: flex; align-items: center; gap: 14px;
+      box-shadow: var(--shadow); transition: transform 0.2s;
+    }
+    .contact-card:active { transform: scale(0.98); }
+
+    .contact-avatar {
+      width: 48px; height: 48px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px; font-weight: 800; color: #fff;
+      flex-shrink: 0; font-family: 'Outfit', sans-serif;
+    }
+    .av-purple { background: linear-gradient(135deg, #7C3AED, #A855F7); }
+    .av-orange { background: linear-gradient(135deg, #F97316, #FB923C); }
+    .av-pink   { background: linear-gradient(135deg, #EC4899, #F472B6); }
+    .av-teal   { background: linear-gradient(135deg, #14B8A6, #2DD4BF); }
+    .av-blue   { background: linear-gradient(135deg, #3B82F6, #60A5FA); }
+
+    .contact-info { flex: 1; min-width: 0; }
+    .contact-name { font-size: 15px; font-weight: 700; color: var(--text-1); }
+    .contact-phone { font-size: 12px; color: var(--text-2); margin-top: 2px; font-family: monospace; }
+    .contact-key { font-size: 11px; color: var(--purple-1); margin-top: 3px; font-weight: 600; }
+
+    .contact-actions { display: flex; gap: 6px; }
+    .contact-test-btn {
+      background: #DCFCE7; color: #16A34A; border: none;
+      border-radius: 10px; padding: 7px 12px;
+      font-family: 'Outfit', sans-serif; font-size: 12px; font-weight: 600;
       cursor: pointer;
-      box-shadow: 0 8px 30px rgba(255,59,92,0.4);
-      transition: transform 0.15s, box-shadow 0.15s;
-      letter-spacing: 0.3px;
     }
-    #btnGrantAll:hover { transform: translateY(-2px); box-shadow: 0 12px 40px rgba(255,59,92,0.55); }
-    #btnGrantAll:active { transform: translateY(0); }
-    #btnGrantAll:disabled { opacity: 0.7; cursor: not-allowed; transform: none; }
-
-    #btnSkipSplash {
-      display: block; margin: 14px auto 0;
-      background: none; border: none; cursor: pointer;
-      color: rgba(255,255,255,0.3); font-size: 12px;
-      font-family: 'Outfit', sans-serif;
-      transition: color 0.2s;
+    .contact-del-btn {
+      background: #FEE2E2; color: #DC2626; border: none;
+      border-radius: 10px; padding: 7px 10px;
+      font-family: 'Outfit', sans-serif; font-size: 14px;
+      cursor: pointer;
     }
-    #btnSkipSplash:hover { color: rgba(255,255,255,0.6); }
 
-    .splash-mode-badge {
-      margin-top: 20px;
-      padding: 8px 16px;
-      border-radius: 99px;
-      font-size: 11px; font-weight: 600;
-      letter-spacing: 0.5px;
+    /* ── ADD CONTACT ────────────────────────────── */
+    .add-contact-card {
+      background: var(--purple-light); border-radius: 18px;
+      border: 2px dashed var(--purple-3);
+      padding: 16px; text-align: center;
+      cursor: pointer; transition: all 0.2s;
     }
-    .badge-local  { background: rgba(0,210,130,0.15); color: #00d282; border: 1px solid rgba(0,210,130,0.25); }
-    .badge-github { background: rgba(100,120,255,0.15); color: #8896ff; border: 1px solid rgba(100,120,255,0.25); }
+    .add-contact-card:hover { background: var(--purple-1); }
+    .add-contact-card:hover .add-lbl { color: #fff; }
 
-    /* ── CONNECTION MODE BANNER ───────────────────────────────────────── */
-    #connModeBanner {
-      background: rgba(0,210,130,0.08);
-      border: 1px solid rgba(0,210,130,0.2);
-      border-radius: 12px;
-      padding: 10px 16px;
-      margin: 0 0 14px;
+    .add-lbl { color: var(--purple-1); font-size: 14px; font-weight: 600; }
+    .add-form { display: none; flex-direction: column; gap: 10px; margin-top: 14px; }
+    .add-form.show { display: flex; }
+
+    .form-input {
+      background: #fff; border: 1.5px solid #E5E7EB;
+      border-radius: 12px; padding: 12px 14px;
+      font-family: 'Outfit', sans-serif; font-size: 14px;
+      color: var(--text-1); outline: none; width: 100%;
+    }
+    .form-input:focus { border-color: var(--purple-1); }
+
+    .save-btn {
+      background: var(--purple-1); color: #fff;
+      border: none; border-radius: 12px; padding: 14px;
+      font-family: 'Outfit', sans-serif; font-size: 15px; font-weight: 700;
+      cursor: pointer; width: 100%;
+    }
+    .callmebot-link {
+      display: block; text-align: center;
+      background: #DCFCE7; color: #16A34A;
+      border-radius: 10px; padding: 10px;
+      font-size: 13px; font-weight: 600; text-decoration: none;
+      margin-top: 4px;
+    }
+
+    /* ── MQTT STATUS CARD ───────────────────────── */
+    .mqtt-card {
+      background: linear-gradient(135deg, #1E1B4B, #312E81);
+      border-radius: 20px; padding: 18px;
+      display: flex; align-items: center; gap: 14px;
+    }
+    .mqtt-icon {
+      width: 48px; height: 48px; border-radius: 14px;
+      background: rgba(255,255,255,0.1);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px; flex-shrink: 0;
+    }
+    .mqtt-info { flex: 1; }
+    .mqtt-title { color: #fff; font-size: 15px; font-weight: 700; }
+    .mqtt-sub   { color: rgba(255,255,255,0.55); font-size: 12px; margin-top: 3px; }
+    .mqtt-status-pill {
+      padding: 6px 12px; border-radius: 99px;
+      font-size: 12px; font-weight: 700;
+    }
+    .mqtt-status-pill.connecting { background: rgba(251,191,36,0.2); color: #FCD34D; }
+    .mqtt-status-pill.connected  { background: rgba(34,197,94,0.2);  color: #4ADE80; }
+    .mqtt-status-pill.error      { background: rgba(239,68,68,0.2);  color: #FCA5A5; }
+
+    /* ── OLED MIRROR ────────────────────────────── */
+    .oled-card {
+      background: var(--card); border-radius: 20px;
+      padding: 16px; box-shadow: var(--shadow);
+    }
+    .oled-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    .oled-card-title  { font-size: 15px; font-weight: 700; }
+    .oled-badge       { background: #1E1B4B; color: #818CF8; border-radius: 99px; padding: 4px 10px; font-size: 10px; font-weight: 600; }
+
+    .oled-screen {
+      background: #000; border-radius: 12px;
+      padding: 14px; font-family: monospace;
+      font-size: 11px; line-height: 1.6; color: #00ff88;
+      min-height: 90px; border: 2px solid #1F2937;
+    }
+
+    /* ── LOG TABLE ──────────────────────────────── */
+    .log-card { background: var(--card); border-radius: 20px; padding: 16px; box-shadow: var(--shadow); }
+    .log-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    .log-title  { font-size: 15px; font-weight: 700; }
+    .log-clear-btn {
+      background: #FEE2E2; color: #DC2626;
+      border: none; border-radius: 8px; padding: 5px 12px;
+      font-family: 'Outfit', sans-serif; font-size: 12px; font-weight: 600; cursor: pointer;
+    }
+    .log-entries { display: flex; flex-direction: column; gap: 6px; max-height: 220px; overflow-y: auto; }
+    .log-entry {
+      display: flex; gap: 10px; align-items: flex-start;
+      padding: 10px 12px; border-radius: 12px; background: #F9FAFB;
       font-size: 12px;
-      color: rgba(255,255,255,0.7);
-      display: flex; align-items: center; gap: 10px;
     }
-    #connModeBanner.github-mode {
-      background: rgba(100,120,255,0.08);
-      border-color: rgba(100,120,255,0.2);
+    .log-entry.sos { background: #FEF2F2; }
+    .log-entry.loc { background: #F0FDF4; }
+    .log-tag {
+      font-weight: 700; font-size: 10px; padding: 2px 7px; border-radius: 6px;
+      white-space: nowrap; margin-top: 1px;
     }
-    .conn-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-    .conn-dot.green { background: #00d282; box-shadow: 0 0 8px #00d282; }
-    .conn-dot.purple { background: #8896ff; box-shadow: 0 0 8px #8896ff; }
+    .tag-sos { background: #FEE2E2; color: #DC2626; }
+    .tag-loc { background: #DCFCE7; color: #16A34A; }
+    .tag-sys { background: var(--purple-light); color: var(--purple-1); }
+    .tag-err { background: #FEF3C7; color: #D97706; }
+    .log-text { flex: 1; color: var(--text-1); font-weight: 500; }
+    .log-time  { color: var(--text-2); font-size: 11px; white-space: nowrap; }
+
+    /* ── BOTTOM NAV ─────────────────────────────── */
+    .bottom-nav {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      background: #fff;
+      border-top: 1px solid #F3F4F6;
+      padding: 10px 0 env(safe-area-inset-bottom);
+      display: flex; z-index: 100;
+      box-shadow: 0 -4px 20px rgba(0,0,0,0.06);
+    }
+    .nav-item {
+      flex: 1; display: flex; flex-direction: column;
+      align-items: center; gap: 4px;
+      cursor: pointer; padding: 4px;
+      color: var(--text-2); font-size: 11px; font-weight: 500;
+      transition: color 0.2s; border: none; background: none;
+      font-family: 'Outfit', sans-serif;
+    }
+    .nav-item.active { color: var(--purple-1); }
+    .nav-item .nav-icon-wrap {
+      width: 36px; height: 36px; border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      transition: background 0.2s;
+    }
+    .nav-item.active .nav-icon-wrap { background: var(--purple-light); }
+
+    /* ── TAB SECTIONS ───────────────────────────── */
+    .tab-section { display: none; }
+    .tab-section.active { display: block; }
+
+    /* ── WI-FI MODAL ────────────────────────────── */
+    .modal-overlay {
+      display: none; position: fixed; inset: 0; z-index: 500;
+      background: rgba(0,0,0,0.5); backdrop-filter: blur(4px);
+      align-items: flex-end; justify-content: center;
+    }
+    .modal-overlay.show { display: flex; }
+    .modal-sheet {
+      background: #fff; border-radius: 28px 28px 0 0;
+      padding: 24px 20px 40px;
+      width: 100%; max-width: 500px;
+      animation: slideUp 0.35s cubic-bezier(0.34,1.56,0.64,1);
+    }
+    @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+    .modal-handle { width: 40px; height: 4px; background: #E5E7EB; border-radius: 2px; margin: 0 auto 20px; }
+    .modal-title  { font-size: 18px; font-weight: 800; margin-bottom: 16px; }
+    .wifi-detail  { background: #F9FAFB; border-radius: 12px; padding: 14px; margin-bottom: 12px; }
+    .wifi-row     { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; }
+    .wifi-key     { font-size: 13px; color: var(--text-2); font-weight: 500; }
+    .wifi-val     { font-size: 14px; font-weight: 700; font-family: monospace; }
+    .wifi-btn {
+      width: 100%; padding: 16px; border: none; border-radius: 14px;
+      font-family: 'Outfit', sans-serif; font-size: 16px; font-weight: 700;
+      cursor: pointer; margin-bottom: 10px;
+    }
+    .wifi-btn.primary { background: var(--purple-1); color: #fff; }
+    .wifi-btn.secondary { background: var(--purple-light); color: var(--purple-1); }
   </style>
 </head>
 <body>
 
-  <!-- ═══════════════════════════════════════════════════════════════════ -->
-  <!-- PERMISSION SPLASH SCREEN — shown on first load                    -->
-  <!-- ═══════════════════════════════════════════════════════════════════ -->
-  <div id="permSplash">
-    <div class="splash-card">
-      <div class="splash-shield">
-        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5">
-          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-          <circle cx="12" cy="12" r="3" fill="#fff" stroke="none"/>
-        </svg>
+<!-- ═══════════════════════════════════════════════════════
+     PERMISSION SPLASH
+═══════════════════════════════════════════════════════ -->
+<div id="splash">
+  <div class="splash-logo">
+    <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round">
+      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+      <circle cx="12" cy="12" r="3" fill="#fff" stroke="none"/>
+    </svg>
+  </div>
+  <div class="splash-title">SafetyWatch AI</div>
+  <div class="splash-sub">Women's Safety — Powered by ESP32 &amp; Cloud</div>
+
+  <div class="perm-card">
+    <div class="perm-row">
+      <div class="perm-icon-box loc">📍</div>
+      <div class="perm-info">
+        <strong>GPS Location</strong>
+        <span>Real-time tracking &amp; emergency alerts</span>
       </div>
-      <h1 class="splash-title">SafetyWatch AI</h1>
-      <p class="splash-sub">Grant the following permissions to enable real-time safety monitoring and emergency alerts.</p>
-
-      <ul class="perm-list">
-        <li class="perm-item">
-          <div class="perm-icon loc">📍</div>
-          <div class="perm-text">
-            <strong>Precise GPS Location</strong>
-            <span>Required for emergency alerts & map tracking</span>
-          </div>
-          <span class="perm-status wait" id="ps-loc">Waiting…</span>
-        </li>
-        <li class="perm-item">
-          <div class="perm-icon noti">🔔</div>
-          <div class="perm-text">
-            <strong>Push Notifications</strong>
-            <span>SOS alerts when app is in background</span>
-          </div>
-          <span class="perm-status wait" id="ps-noti">Waiting…</span>
-        </li>
-        <li class="perm-item">
-          <div class="perm-icon cam">📳</div>
-          <div class="perm-text">
-            <strong>Vibration / Wake Lock</strong>
-            <span>Emergency vibration & screen-on alerts</span>
-          </div>
-          <span class="perm-status wait" id="ps-vib">Auto</span>
-        </li>
-      </ul>
-
-      <button id="btnGrantAll" onclick="grantAllPermissions()">
-        🛡️ Grant Permissions &amp; Open Dashboard
-      </button>
-      <button id="btnSkipSplash" onclick="skipSplash()">Skip for now →</button>
-
-      <div id="splashModeBadge" class="splash-mode-badge badge-github">
-        Detecting connection mode…
+      <span class="perm-badge wait" id="ps-loc">Waiting</span>
+    </div>
+    <div class="perm-row">
+      <div class="perm-icon-box noti">🔔</div>
+      <div class="perm-info">
+        <strong>Notifications</strong>
+        <span>SOS alerts when app is in background</span>
       </div>
+      <span class="perm-badge wait" id="ps-noti">Waiting</span>
+    </div>
+    <div class="perm-row">
+      <div class="perm-icon-box vib">📳</div>
+      <div class="perm-info">
+        <strong>Device Vibration</strong>
+        <span>Emergency haptic feedback</span>
+      </div>
+      <span class="perm-badge granted" id="ps-vib">✓ Auto</span>
     </div>
   </div>
 
-  <!-- Background glows -->
-  <div class="glow-bg glow-bg-1"></div>
-  <div class="glow-bg glow-bg-2"></div>
+  <button id="btnGrant" onclick="grantPermissions()">
+    🛡️ Grant Permissions &amp; Open Dashboard
+  </button>
+</div>
 
-  <!-- ═══════════════════════════════════════════════════════════════════ -->
-  <!-- HEADER                                                              -->
-  <!-- ═══════════════════════════════════════════════════════════════════ -->
-  <header class="app-header">
-    <div class="header-brand">
-      <div class="brand-logo">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-          <circle cx="12" cy="12" r="3"/>
-        </svg>
-      </div>
-      <div>
-        <h1>SafetyWatch AI <span class="badge-tag">ESP32-S3</span></h1>
-        <p class="subtitle">Wi-Fi SSID: <code>SafetyWatch</code> • Password: <code>Jevin</code></p>
-      </div>
-    </div>
+<!-- ═══════════════════════════════════════════════════════
+     MAIN APP
+═══════════════════════════════════════════════════════ -->
+<div id="app">
 
-    <div class="header-controls">
-      <button class="btn-wifi-connect" onclick="showWifiConnectModal()">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>
-        Connect SafetyWatch Wi-Fi
-      </button>
-
-      <div class="sound-toggle-box">
-        <button id="sirenSoundBtn" class="btn-icon" title="Toggle Emergency Siren Sound" onclick="toggleAudioSiren()">
-          <svg id="soundIcon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
-            <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+  <!-- HEADER -->
+  <div class="app-header">
+    <div class="header-row">
+      <div class="header-brand">
+        <div class="brand-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            <circle cx="12" cy="12" r="3" fill="#fff" stroke="none"/>
           </svg>
-        </button>
-      </div>
-    </div>
-  </header>
-
-  <!-- ═══════════════════════════════════════════════════════════════════ -->
-  <!-- Wi-Fi Modal                                                         -->
-  <!-- ═══════════════════════════════════════════════════════════════════ -->
-  <div id="wifiModal" class="modal-overlay" style="display:none;">
-    <div class="modal-card">
-      <div class="modal-header">
-        <h2>Connect to SafetyWatch Wi-Fi</h2>
-        <button class="btn-close-modal" onclick="closeWifiConnectModal()">✕</button>
-      </div>
-      <div class="modal-body">
-        <div class="wifi-qr-box">
-          <img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=WIFI:S:SafetyWatch;T:WPA;P:Jevin;;" alt="SafetyWatch Wi-Fi QR Code">
         </div>
-        <div class="wifi-details-card">
-          <p><strong>Wi-Fi Name (SSID):</strong> <code>SafetyWatch</code></p>
-          <p><strong>Password:</strong> <code>Jevin</code></p>
-          <p><strong>Target IP:</strong> <code>192.168.4.1</code></p>
-        </div>
-        <div class="wifi-modal-actions">
-          <button class="btn-primary-wide" onclick="triggerAutoWifiSettings()">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>
-            Open Device Wi-Fi Settings
-          </button>
-          <button class="btn-secondary-wide" onclick="copyWifiPassword()">
-            📋 Copy Password (Jevin)
-          </button>
-        </div>
-        <p class="wifi-note">💡 Point your phone camera at the QR code above to connect automatically!</p>
-
-        <!-- Local Server Link (shown when on same network) -->
-        <div id="localServerHint" style="display:none; margin-top:14px; padding:12px; background:rgba(0,210,130,0.08); border-radius:10px; border:1px solid rgba(0,210,130,0.2); font-size:12px; color:rgba(255,255,255,0.7); text-align:center;">
-          🖥️ <strong style="color:#00d282;">ESP32 Hardware SOS</strong> needs the local server.<br>
-          Open: <a id="localServerUrl" href="http://localhost:3000" target="_blank" style="color:#00d282; font-weight:700;">http://localhost:3000</a>
+        <div>
+          <div class="brand-name">SafetyWatch AI</div>
+          <div class="brand-sub">ESP32-S3 Zero • MQTT Cloud</div>
         </div>
       </div>
-    </div>
-  </div>
-
-  <!-- ═══════════════════════════════════════════════════════════════════ -->
-  <!-- EMERGENCY BANNER                                                    -->
-  <!-- ═══════════════════════════════════════════════════════════════════ -->
-  <div id="sosEmergencyBanner" class="sos-banner">
-    <div class="banner-content">
-      <div class="pulsing-siren-icon">🚨</div>
-      <div>
-        <div class="banner-title">CRITICAL EMERGENCY — SOS ACTIVE</div>
-        <div class="banner-sub" id="sosBannerTime">Auto-sending WhatsApp alerts to all family members...</div>
-      </div>
-    </div>
-    <div class="banner-actions">
-      <button class="btn-broadcast-whatsapp" onclick="broadcastAutoWhatsAppEmergency()">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.572-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-        Re-Send Auto WhatsApp
+      <button class="header-sound-btn" id="sirenSoundBtn" onclick="toggleAudioSiren()" title="Toggle Siren">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+          <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/>
+        </svg>
       </button>
-      <button class="btn-banner-reset" onclick="resetSOSState()">CLEAR EMERGENCY</button>
+    </div>
+
+    <div class="stats-bar">
+      <div class="stat-item">
+        <div class="stat-val"><span class="stat-dot dot-off" id="hdrDevDot"></span><span id="hdrDevice">--</span></div>
+        <div class="stat-lbl">Watch</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-val"><span class="stat-dot dot-off" id="hdrGpsDot"></span><span id="hdrGps">--</span></div>
+        <div class="stat-lbl">GPS</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-val"><span class="stat-dot dot-warn" id="hdrSosDot"></span><span id="hdrSos">Normal</span></div>
+        <div class="stat-lbl">SOS</div>
+      </div>
     </div>
   </div>
 
-  <!-- ═══════════════════════════════════════════════════════════════════ -->
-  <!-- MAIN DASHBOARD                                                      -->
-  <!-- ═══════════════════════════════════════════════════════════════════ -->
-  <main class="dashboard-container">
-
-    <!-- Connection mode banner (dynamic) -->
-    <div id="connModeBanner" class="github-mode">
-      <div class="conn-dot purple"></div>
-      <div>Detecting connection mode… GPS tracking active via browser.</div>
+  <!-- SOS EMERGENCY BANNER -->
+  <div id="sosBanner" class="sos-banner">
+    <div class="sos-banner-left">
+      <span class="sos-siren">🚨</span>
+      <div>
+        <div class="sos-banner-title">EMERGENCY — SOS ACTIVE</div>
+        <div class="sos-banner-sub" id="sosBannerTime">Sending WhatsApp alerts…</div>
+      </div>
     </div>
+    <button class="sos-clear-btn" onclick="resetSOSState()">CLEAR</button>
+  </div>
 
-    <section class="kpi-grid">
-      <div class="kpi-card">
-        <div class="kpi-header">
-          <span class="kpi-title">Device Connection</span>
-          <span id="dotDevice" class="status-dot bad"></span>
-        </div>
-        <div class="kpi-value" id="deviceStatusText">Disconnected</div>
-        <div class="kpi-meta" id="deviceIpText">IP: --</div>
-      </div>
+  <!-- SCROLL CONTENT -->
+  <div class="main-scroll">
 
-      <div class="kpi-card">
-        <div class="kpi-header">
-          <span class="kpi-title">Wi-Fi AP Status</span>
-          <span id="dotWifi" class="status-dot bad"></span>
-        </div>
-        <div class="kpi-value" id="wifiStatusText">Disconnected</div>
-        <div class="kpi-meta" id="wifiMetaText">SSID: SafetyWatch</div>
-      </div>
+    <!-- ── TAB: HOME ─────────────────────────────── -->
+    <div id="tab-home" class="tab-section active">
 
-      <div class="kpi-card">
-        <div class="kpi-header">
-          <span class="kpi-title">SOS Alarm</span>
-          <span id="dotSos" class="status-dot ok"></span>
-        </div>
-        <div class="kpi-value" id="sosStatusText">NORMAL</div>
-        <div class="kpi-meta" id="sosTimeText">No Active Alert</div>
-      </div>
-
-      <div class="kpi-card">
-        <div class="kpi-header">
-          <span class="kpi-title">OLED Screen</span>
-          <span id="dotOled" class="status-dot bad"></span>
-        </div>
-        <div class="kpi-value" id="oledStatusText">--</div>
-        <div class="kpi-meta">Addr: 0x3C (I2C)</div>
-      </div>
-
-      <div class="kpi-card">
-        <div class="kpi-header">
-          <span class="kpi-title">GPS Signal</span>
-          <span id="dotGps" class="status-dot bad"></span>
-        </div>
-        <div class="kpi-value" id="gpsStatusText">Requesting…</div>
-        <div class="kpi-meta" id="gpsAccText">Accuracy: --</div>
-      </div>
-
-      <div class="kpi-card">
-        <div class="kpi-header">
-          <span class="kpi-title">WhatsApp Alert Engine</span>
-          <span id="dotWaApi" class="status-dot ok"></span>
-        </div>
-        <div class="kpi-value" id="waApiStatusText" style="color:var(--whatsapp-green); font-size:16px;">Dual Gateway Ready</div>
-        <div class="kpi-meta" id="waApiSubText">Auto API + wa.me Backup</div>
-      </div>
-    </section>
-
-    <div class="grid-2col">
-      <section class="panel-card map-panel">
-        <div class="panel-header">
-          <div>
-            <h2>Real-Time GPS Location Tracking</h2>
-            <p class="panel-sub">Live location shared automatically via WhatsApp on SOS</p>
+      <!-- Status Cards -->
+      <div class="section-label">Device Status</div>
+      <div class="status-cards">
+        <div class="status-card purple-border">
+          <div class="sc-top">
+            <div class="sc-icon purple">📡</div>
+            <div class="sc-dot bad" id="dotDevice"></div>
           </div>
-          <div class="map-actions">
-            <button class="btn-primary" id="btnGetLoc" onclick="requestBrowserLocation()">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="12" r="10"/><polygon points="12 8 8 12 12 16 12 8"/>
-              </svg>
-              Refresh GPS
-            </button>
-            <a id="googleMapsBtn" href="#" target="_blank" rel="noopener" class="btn-maps disabled">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
-              </svg>
-              Google Maps
-            </a>
-          </div>
+          <div class="sc-val" id="deviceStatusText">Offline</div>
+          <div class="sc-lbl">Watch Connection</div>
         </div>
-        <div id="map" class="map-box"></div>
-        <div class="coords-ribbon">
-          <div class="coord-item"><span class="coord-label">Latitude</span><span class="coord-val" id="latVal">--</span></div>
-          <div class="coord-item"><span class="coord-label">Longitude</span><span class="coord-val" id="lonVal">--</span></div>
-          <div class="coord-item"><span class="coord-label">Accuracy</span><span class="coord-val" id="accVal">--</span></div>
-          <div class="coord-item"><span class="coord-label">Last Updated</span><span class="coord-val" id="lastLocTime">Never</span></div>
+        <div class="status-card">
+          <div class="sc-top">
+            <div class="sc-icon green">📍</div>
+            <div class="sc-dot bad" id="dotGps"></div>
+          </div>
+          <div class="sc-val" id="gpsStatusText">--</div>
+          <div class="sc-lbl">GPS Signal</div>
         </div>
-      </section>
+        <div class="status-card">
+          <div class="sc-top">
+            <div class="sc-icon orange">🔊</div>
+            <div class="sc-dot ok" id="dotSos"></div>
+          </div>
+          <div class="sc-val" id="sosStatusText">Normal</div>
+          <div class="sc-lbl">SOS Alarm</div>
+        </div>
+        <div class="status-card">
+          <div class="sc-top">
+            <div class="sc-icon pink">💬</div>
+            <div class="sc-dot ok"></div>
+          </div>
+          <div class="sc-val" style="font-size:14px; color:#16A34A;">Ready</div>
+          <div class="sc-lbl">WhatsApp Alerts</div>
+        </div>
+      </div>
 
-      <div class="side-controls-column">
-        <section class="panel-card sos-control-card">
-          <div class="panel-header">
-            <h2>Hardware &amp; Web SOS Trigger</h2>
-          </div>
-          <div class="sos-center-wrap">
-            <button id="sosTriggerBtn" class="big-sos-btn" onclick="triggerSOSEvent()">
-              <span class="sos-btn-text">SOS</span>
-              <span class="sos-btn-sub">AUTO-SENDS WHATSAPP</span>
-            </button>
-          </div>
-          <div class="action-btn-row">
-            <button class="btn-reset-full" onclick="resetSOSState()">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
-              Reset SOS State
-            </button>
-            <button class="btn-vibrate-test" onclick="triggerVibrationTest()">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 8v8"/><path d="M22 8v8"/><path d="M6 5v14"/><path d="M18 5v14"/><rect x="10" y="3" width="4" height="18" rx="2"/></svg>
-              Vibrate Motor (1.5s)
-            </button>
-          </div>
-        </section>
-
-        <section class="panel-card oled-card">
-          <div class="panel-header">
+      <!-- SOS BUTTON -->
+      <div class="section-label">Emergency SOS</div>
+      <div class="sos-section">
+        <div class="big-sos-wrap">
+          <button class="big-sos-btn" onclick="triggerSOSEvent()">
+            <div class="sos-btn-icon">🆘</div>
             <div>
-              <h2>SSD1306 OLED Display Mirror</h2>
-              <p class="panel-sub">0.96" Monochrome (128×64px I2C)</p>
+              <div class="sos-btn-text">PRESS SOS</div>
+              <div class="sos-btn-sub">AUTO-SENDS WHATSAPP ALERT</div>
             </div>
-            <span class="oled-badge">SDA: GPIO8 | SCL: GPIO9</span>
-          </div>
-          <div class="oled-frame-outer">
-            <div class="oled-bezel">
-              <div id="oledScreen" class="oled-screen-content">
-                <div class="oled-line font-header">Safety Watch</div>
-                <div class="oled-line">WiFi: Disconnected</div>
-                <div class="oled-line">IP: 192.168.4.1</div>
-                <div class="oled-line">Lat: --</div>
-                <div class="oled-line">Lon: --</div>
-                <div class="oled-line">SOS: Normal</div>
-                <div class="oled-line">Up: 0s</div>
-              </div>
-            </div>
-          </div>
-        </section>
-      </div>
-    </div>
-
-    <!-- Contacts -->
-    <section class="panel-card contacts-section">
-      <div class="panel-header">
-        <div>
-          <h2>Family Emergency Contacts</h2>
-          <p class="panel-sub">Default Indian Country Code (+91) — CallMeBot Auto API + wa.me Backup</p>
-        </div>
-        <div style="display:flex; gap:8px; flex-wrap:wrap;">
-          <a class="btn-activate-callmebot" href="https://wa.me/34644519169?text=I%20allow%20callmebot%20to%20send%20me%20messages" target="_blank" rel="noopener">
-            ⚡ 1-Click Activate CallMeBot
-          </a>
-          <button class="btn-add-contact" onclick="toggleAddContactForm()">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            Add Contact
           </button>
         </div>
-      </div>
-
-      <div id="addContactForm" class="add-contact-box" style="display:none;">
-        <div class="form-grid">
-          <input type="text" id="contactName" placeholder="Name (e.g. Mom, Dad)">
-          <input type="tel" id="contactPhone" value="+91 " placeholder="+91 9876543210">
-          <input type="text" id="contactApiKey" placeholder="CallMeBot API Key (e.g. 123456)">
-          <input type="text" id="contactRelation" placeholder="Relation (e.g. Guardian)">
-          <button class="btn-save-contact" onclick="saveNewContact()">Save Contact</button>
-        </div>
-        <div class="api-help-box">
-          <p>📖 <strong>CallMeBot Activation:</strong></p>
-          <ol style="margin-left:20px; font-size:12px; color:var(--text-main); margin-top:4px;">
-            <li>Click <strong>"⚡ 1-Click Activate CallMeBot"</strong> above.</li>
-            <li>CallMeBot will reply with your API Key (e.g. <code>123456</code>).</li>
-            <li>Enter your phone number &amp; API key above. wa.me backup auto-activates if API fails!</li>
-          </ol>
+        <div class="sos-sub-btns">
+          <button class="sos-sub-btn danger" onclick="resetSOSState()">✕ Reset</button>
+          <button class="sos-sub-btn" onclick="triggerVibrationTest()">📳 Test Vibrate</button>
+          <button class="sos-sub-btn" onclick="showWifiModal()">📶 Wi-Fi</button>
         </div>
       </div>
 
-      <div class="contacts-grid" id="contactsGrid"></div>
-    </section>
-
-    <!-- Logs -->
-    <section class="panel-card log-section">
-      <div class="panel-header">
-        <div>
-          <h2>System Telemetry &amp; Audit Trail</h2>
-          <p class="panel-sub">Real-time log of automated WhatsApp API calls and GPS tracking updates</p>
+      <!-- MQTT Card -->
+      <div class="section-label">Cloud Bridge</div>
+      <div class="mqtt-card">
+        <div class="mqtt-icon">☁️</div>
+        <div class="mqtt-info">
+          <div class="mqtt-title" id="mqttTitle">MQTT Bridge</div>
+          <div class="mqtt-sub" id="mqttSub">HiveMQ Cloud • safetywatch/Jevin</div>
         </div>
-        <div class="log-actions">
-          <button class="btn-sm" onclick="exportLogsJSON()">Export JSON Log</button>
-          <button class="btn-sm text-danger" onclick="clearLogs()">Clear Logs</button>
+        <div class="mqtt-status-pill connecting" id="mqttPill">Connecting…</div>
+      </div>
+
+      <!-- OLED Mirror -->
+      <div class="section-label">OLED Display Mirror</div>
+      <div class="oled-card">
+        <div class="oled-card-header">
+          <div class="oled-card-title">SSD1306 • 0.96" I2C</div>
+          <div class="oled-badge">GPIO8/9 • 0x3C</div>
+        </div>
+        <div class="oled-screen" id="oledScreen">SafetyWatch AI
+WiFi: --
+SOS: Normal
+Lat: --
+Lon: --</div>
+      </div>
+
+    </div><!-- /tab-home -->
+
+    <!-- ── TAB: MAP ──────────────────────────────── -->
+    <div id="tab-map" class="tab-section">
+      <div class="section-label">Real-Time GPS Tracking</div>
+      <div class="map-card">
+        <div class="map-card-header">
+          <div class="map-card-title">Live Location</div>
+          <div class="gps-pill off" id="gpsPill">
+            <div class="gps-dot"></div>
+            <span id="gpsAccText">Searching…</span>
+          </div>
+        </div>
+        <div id="map"></div>
+        <div class="coords-row">
+          <div class="coord-chip">
+            <div class="coord-chip-lbl">Latitude</div>
+            <div class="coord-chip-val" id="latVal">--</div>
+          </div>
+          <div class="coord-chip">
+            <div class="coord-chip-lbl">Longitude</div>
+            <div class="coord-chip-val" id="lonVal">--</div>
+          </div>
+          <div class="coord-chip">
+            <div class="coord-chip-lbl">Accuracy</div>
+            <div class="coord-chip-val" id="accVal">--</div>
+          </div>
+          <div class="coord-chip">
+            <div class="coord-chip-lbl">Updated</div>
+            <div class="coord-chip-val" id="lastLocTime">Never</div>
+          </div>
+        </div>
+        <div class="map-actions">
+          <button class="map-btn primary" onclick="requestBrowserLocation()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4" fill="currentColor"/></svg>
+            Refresh GPS
+          </button>
+          <a id="googleMapsBtn" href="#" target="_blank" class="map-btn secondary">
+            🗺 Open Maps
+          </a>
         </div>
       </div>
-      <div class="log-table-wrap">
-        <table class="log-table">
-          <thead>
-            <tr>
-              <th>Timestamp</th>
-              <th>Source</th>
-              <th>Event Type</th>
-              <th>Details / Payload</th>
-            </tr>
-          </thead>
-          <tbody id="logTableBody"></tbody>
-        </table>
+    </div><!-- /tab-map -->
+
+    <!-- ── TAB: CONTACTS ────────────────────────── -->
+    <div id="tab-contacts" class="tab-section">
+      <div class="section-label">Family Emergency Contacts</div>
+
+      <a class="callmebot-link" href="https://wa.me/34644519169?text=I%20allow%20callmebot%20to%20send%20me%20messages" target="_blank" rel="noopener" style="margin-bottom:10px; display:block;">
+        ⚡ Tap to Activate CallMeBot WhatsApp API
+      </a>
+
+      <div class="contact-list" id="contactsGrid"></div>
+
+      <!-- Add Contact -->
+      <div style="margin-top:12px;">
+        <div class="add-contact-card" onclick="toggleAddForm()">
+          <div class="add-lbl">+ Add Emergency Contact</div>
+        </div>
+        <div class="add-form" id="addForm">
+          <input class="form-input" id="cName"     type="text" placeholder="Name (e.g. Mom, Dad)">
+          <input class="form-input" id="cPhone"    type="tel"  placeholder="+91 9876543210" value="+91 ">
+          <input class="form-input" id="cApiKey"   type="text" placeholder="CallMeBot API Key">
+          <input class="form-input" id="cRelation" type="text" placeholder="Relation (e.g. Guardian)">
+          <button class="save-btn" onclick="saveContact()">Save Contact</button>
+        </div>
       </div>
-    </section>
+    </div><!-- /tab-contacts -->
 
-  </main>
+    <!-- ── TAB: LOGS ─────────────────────────────── -->
+    <div id="tab-logs" class="tab-section">
+      <div class="log-card">
+        <div class="log-header">
+          <div class="log-title">System Log</div>
+          <button class="log-clear-btn" onclick="clearLogs()">Clear</button>
+        </div>
+        <div class="log-entries" id="logEntries"></div>
+      </div>
+    </div><!-- /tab-logs -->
 
-  <footer>
-    <p>SafetyWatch AI ESP32-S3 Zero • SSID: <code>SafetyWatch</code> • Password: <code>Jevin</code> • <a href="https://github.com/Logajevin/Women-safetyWatch" target="_blank" style="color:var(--accent-blue);">GitHub</a></p>
-  </footer>
+  </div><!-- /main-scroll -->
 
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-  <script src="app.js?v=20260728_v4"></script>
+  <!-- BOTTOM NAV -->
+  <nav class="bottom-nav">
+    <button class="nav-item active" id="nav-home" onclick="switchTab('home')">
+      <div class="nav-icon-wrap">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      </div>
+      Home
+    </button>
+    <button class="nav-item" id="nav-map" onclick="switchTab('map')">
+      <div class="nav-icon-wrap">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+      </div>
+      GPS Map
+    </button>
+    <button class="nav-item" id="nav-contacts" onclick="switchTab('contacts')">
+      <div class="nav-icon-wrap">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      </div>
+      Contacts
+    </button>
+    <button class="nav-item" id="nav-logs" onclick="switchTab('logs')">
+      <div class="nav-icon-wrap">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+      </div>
+      Logs
+    </button>
+  </nav>
 
+</div><!-- /app -->
+
+<!-- Wi-Fi Modal -->
+<div id="wifiModal" class="modal-overlay" onclick="if(event.target===this)closeWifiModal()">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title">📶 Connect SafetyWatch Wi-Fi</div>
+    <div class="wifi-detail">
+      <div class="wifi-row"><span class="wifi-key">Network (SSID)</span><span class="wifi-val">SafetyWatch</span></div>
+      <div class="wifi-row"><span class="wifi-key">Password</span><span class="wifi-val">Jevin</span></div>
+      <div class="wifi-row"><span class="wifi-key">ESP32 IP</span><span class="wifi-val">192.168.4.1</span></div>
+    </div>
+    <button class="wifi-btn primary" onclick="openWifiSettings()">Open Wi-Fi Settings</button>
+    <button class="wifi-btn secondary" onclick="copyWifiPass()">📋 Copy Password</button>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<script src="app.js?v=20260728_v5"></script>
 </body>
 </html>

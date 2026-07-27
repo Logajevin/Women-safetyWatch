@@ -1,12 +1,12 @@
 // ============================================================================
-// SafetyWatch AI — Mobile-First Dashboard Logic (MQTT Cloud + GPS Engine)
+// SafetyWatch AI — Mobile UI Logic & MQTT Cloud Integration
 // ============================================================================
 
 let deviceState = {
   online: false,
   wifi: 'Disconnected',
   ip: '192.168.4.1',
-  oled: 'Not Detected',
+  oled: 'OK',
   lat: '12.9716',
   lon: '77.5946',
   accuracy: '15m',
@@ -43,8 +43,6 @@ function grantPermissions() {
     btn.textContent = 'Acquiring GPS & Notification Permissions...';
   }
 
-  let locationAcquired = false;
-
   // 1. Request GPS Geolocation
   if (navigator.geolocation) {
     navigator.geolocation.getCurrentPosition(
@@ -52,20 +50,18 @@ function grantPermissions() {
         const badge = document.getElementById('ps-loc');
         if (badge) {
           badge.textContent = '✓ Granted';
-          badge.className = 'perm-badge granted';
+          badge.className = 'perm-status-chip granted';
         }
         onGPSPosition(pos);
-        locationAcquired = true;
         enterDashboard();
       },
       (err) => {
         const badge = document.getElementById('ps-loc');
         if (badge) {
           badge.textContent = '⚠️ Denied';
-          badge.className = 'perm-badge denied';
+          badge.className = 'perm-status-chip denied';
         }
         addTelemetryLog('LOC', 'GPS Permission Denied', err.message);
-        // Enter dashboard anyway so user isn't stuck
         enterDashboard();
       },
       { enableHighAccuracy: true, timeout: 10000 }
@@ -81,10 +77,10 @@ function grantPermissions() {
       if (badge) {
         if (perm === 'granted') {
           badge.textContent = '✓ Granted';
-          badge.className = 'perm-badge granted';
+          badge.className = 'perm-status-chip granted';
         } else {
           badge.textContent = '⚠️ Declined';
-          badge.className = 'perm-badge denied';
+          badge.className = 'perm-status-chip denied';
         }
       }
     });
@@ -97,27 +93,24 @@ function enterDashboard() {
 
   if (splash) {
     splash.classList.add('exit');
-    setTimeout(() => {
-      splash.style.display = 'none';
-    }, 600);
+    setTimeout(() => { splash.style.display = 'none'; }, 500);
   }
 
   if (app) {
     app.classList.add('show');
   }
 
-  // Init app subsystems
   initMap();
   loadContactsFromStorage();
   renderContacts();
   startAutomaticMobileGPS();
   initMQTTBridge();
 
-  addTelemetryLog('SYS', 'SafetyWatch Ready', 'All permissions granted — Dashboard active');
+  addTelemetryLog('SYS', 'SafetyWatch Dashboard Active', 'Permissions initialized');
   renderUI();
 }
 
-// ── GPS TRACKING ─────────────────────────────────────────────────────────
+// ── GPS TRACKING ENGINE ──────────────────────────────────────────────────
 function startAutomaticMobileGPS() {
   if (!navigator.geolocation) return;
 
@@ -171,9 +164,9 @@ function initMap() {
 
   const customIcon = L.divIcon({
     className: 'custom-map-marker',
-    html: `<div style="width:20px; height:20px; background:#7C3AED; border:3px solid #fff; border-radius:50%; box-shadow:0 0 16px rgba(124,58,237,0.6);"></div>`,
-    iconSize: [20, 20],
-    iconAnchor: [10, 10]
+    html: `<div style="width:22px; height:22px; background:#7C3AED; border:3px solid #fff; border-radius:50%; box-shadow:0 0 18px rgba(124,58,237,0.6);"></div>`,
+    iconSize: [22, 22],
+    iconAnchor: [11, 11]
   });
 
   marker = L.marker([defaultLat, defaultLon], { icon: customIcon }).addTo(map);
@@ -217,7 +210,7 @@ function updateMapPosition(lat, lon, accuracy = 15) {
   if (timeEl) timeEl.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }
 
-// ── MQTT CLOUD BRIDGE (HiveMQ Public) ────────────────────────────────────
+// ── MQTT CLOUD ENGINE (HiveMQ Public Broker) ──────────────────────────────
 const MQTT_BROKER = 'wss://broker.hivemq.com:8884/mqtt';
 const MQTT_SOS    = 'safetywatch/Jevin/sos';
 const MQTT_LOC    = 'safetywatch/Jevin/location';
@@ -232,15 +225,13 @@ function initMQTTBridge() {
   s.src = 'https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js';
   s.onload = connectMQTT;
   s.onerror = () => {
-    updateMqttUI('error', 'Script Error', 'Failed to load MQTT.js');
-    addTelemetryLog('ERR', 'MQTT Script Error', 'Failed to load CDN script');
+    addTelemetryLog('ERR', 'MQTT Load Error', 'Failed to load MQTT script');
   };
   document.head.appendChild(s);
 }
 
 function connectMQTT() {
   const cid = 'sw_mobile_' + Math.random().toString(16).slice(2, 8);
-  updateMqttUI('connecting', 'Connecting...', 'Broker: broker.hivemq.com');
   addTelemetryLog('SYS', 'MQTT Connecting', 'HiveMQ Cloud Broker');
 
   mqttClient = mqtt.connect(MQTT_BROKER, {
@@ -252,9 +243,8 @@ function connectMQTT() {
   });
 
   mqttClient.on('connect', () => {
-    updateMqttUI('connected', 'Cloud Active ✓', 'Listening for ESP32 Watch SOS');
     mqttClient.subscribe([MQTT_SOS, MQTT_LOC, MQTT_STATUS], { qos: 1 });
-    addTelemetryLog('SYS', 'MQTT Connected!', `Subscribed to ${MQTT_SOS}`);
+    addTelemetryLog('SYS', 'MQTT Connected!', `Topic: ${MQTT_SOS}`);
     deviceState.online = true;
     renderUI();
   });
@@ -272,7 +262,7 @@ function connectMQTT() {
             deviceState.lon = payload.lon;
             updateMapPosition(payload.lat, payload.lon, 20);
           }
-          addTelemetryLog('SOS', '🚨 HARDWARE SOS DETECTED!', 'ESP32 Button → MQTT Cloud → Mobile Dashboard');
+          addTelemetryLog('SOS', '🚨 HARDWARE SOS DETECTED!', 'ESP32 Watch Button Press');
           onInstantSOSDetected('Hardware Watch Button (MQTT)');
         } else if (payload.sos === false && deviceState.sos) {
           deviceState.sos = false;
@@ -300,32 +290,19 @@ function connectMQTT() {
   });
 
   mqttClient.on('error', (err) => {
-    updateMqttUI('error', 'MQTT Error', err.message);
     addTelemetryLog('ERR', 'MQTT Error', err.message);
   });
 
   mqttClient.on('reconnect', () => {
-    updateMqttUI('connecting', 'Reconnecting...', 'Retrying MQTT Cloud connection');
+    addTelemetryLog('SYS', 'MQTT Reconnecting...', 'Retrying Cloud connection');
   });
 }
 
-function updateMqttUI(state, pillText, subText) {
-  const pill = document.getElementById('mqttPill');
-  const sub  = document.getElementById('mqttSub');
-
-  if (pill) {
-    pill.className = `mqtt-status-pill ${state}`;
-    pill.textContent = pillText;
-  }
-  if (sub) sub.textContent = subText;
-}
-
-// ── SOS TRIGGER & WHATSAPP ENGINE ────────────────────────────────────────
+// ── SOS TRIGGER & AUTOMATED WHATSAPP ─────────────────────────────────────
 function triggerSOSEvent() {
   deviceState.sos = true;
   deviceState.sosTimestamp = Date.now();
 
-  // Publish to MQTT cloud broker if connected
   if (mqttClient && mqttClient.connected) {
     const payload = JSON.stringify({ sos: true, lat: deviceState.lat, lon: deviceState.lon, ts: Date.now() });
     mqttClient.publish(MQTT_SOS, payload, { qos: 1 });
@@ -343,7 +320,7 @@ function onInstantSOSDetected(triggerSource) {
 }
 
 function broadcastAutoWhatsAppEmergency(source = 'SOS Emergency') {
-  addTelemetryLog('SOS', 'Dispatching Automated WhatsApp Alerts...', `Contacts count: ${familyContacts.length}`);
+  addTelemetryLog('SOS', 'Dispatching WhatsApp Emergency Alerts...', `Contacts count: ${familyContacts.length}`);
 
   fetch('/api/auto-dispatch-sos', {
     method: 'POST',
@@ -387,7 +364,7 @@ function sendWhatsAppToContact(phone) {
   const msg = encodeURIComponent(buildEmergencyMessage());
   const url = `https://wa.me/${cleanPhone}?text=${msg}`;
   window.open(url, '_blank');
-  addTelemetryLog('SOS', 'WhatsApp Deep-Link Launched', `Target: ${phone}`);
+  addTelemetryLog('SOS', 'WhatsApp Deep-Link Opened', `Target: ${phone}`);
 }
 
 function resetSOSState() {
@@ -457,10 +434,10 @@ function triggerAudioSiren(enable) {
   }
 }
 
-// ── UI RENDERING & TAB NAVIGATION ────────────────────────────────────────
+// ── NAVIGATION & UI SWITCHERS ────────────────────────────────────────────
 function switchTab(tabName) {
-  document.querySelectorAll('.tab-section').forEach((el) => el.classList.remove('active'));
-  document.querySelectorAll('.nav-item').forEach((el) => el.classList.remove('active'));
+  document.querySelectorAll('.tab-pane').forEach((el) => el.classList.remove('active'));
+  document.querySelectorAll('.nav-tab-btn').forEach((el) => el.classList.remove('active'));
 
   const tab = document.getElementById(`tab-${tabName}`);
   const nav = document.getElementById(`nav-${tabName}`);
@@ -473,8 +450,17 @@ function switchTab(tabName) {
   }
 }
 
+function switchCategory(catName, btnEl) {
+  document.querySelectorAll('.cat-pill').forEach((el) => el.classList.remove('active'));
+  if (btnEl) btnEl.classList.add('active');
+
+  if (catName === 'sos') switchTab('home');
+  else if (catName === 'gps') switchTab('map');
+  else if (catName === 'wa') switchTab('contacts');
+  else switchTab('home');
+}
+
 function renderUI() {
-  // SOS Banner
   const banner = document.getElementById('sosBanner');
   if (banner) banner.classList.toggle('show', deviceState.sos);
 
@@ -483,45 +469,36 @@ function renderUI() {
     if (bannerTime) bannerTime.textContent = `Activated at ${new Date(deviceState.sosTimestamp || Date.now()).toLocaleTimeString()}`;
   }
 
-  // Header stats
+  // Header Telemetry Pills
   const hdrDevDot = document.getElementById('hdrDevDot');
   const hdrDevice = document.getElementById('hdrDevice');
-  if (hdrDevDot) hdrDevDot.className = `stat-dot ${deviceState.online ? 'dot-on' : 'dot-off'}`;
+  if (hdrDevDot) hdrDevDot.className = `telem-dot ${deviceState.online ? 'green' : 'red'}`;
   if (hdrDevice) hdrDevice.textContent = deviceState.online ? 'Connected' : 'Offline';
 
   const hdrGpsDot = document.getElementById('hdrGpsDot');
   const hdrGps    = document.getElementById('hdrGps');
-  if (hdrGpsDot) hdrGpsDot.className = `stat-dot ${deviceState.gpsActive ? 'dot-on' : 'dot-off'}`;
-  if (hdrGps)    hdrGps.textContent    = deviceState.gpsActive ? 'Active' : 'Searching';
+  if (hdrGpsDot) hdrGpsDot.className = `telem-dot ${deviceState.gpsActive ? 'green' : 'red'}`;
+  if (hdrGps)    hdrGps.textContent  = deviceState.gpsActive ? 'Active' : 'Searching';
 
   const hdrSosDot = document.getElementById('hdrSosDot');
   const hdrSos    = document.getElementById('hdrSos');
-  if (hdrSosDot) hdrSosDot.className = `stat-dot ${deviceState.sos ? 'dot-off' : 'dot-on'}`;
+  if (hdrSosDot) hdrSosDot.className = `telem-dot ${deviceState.sos ? 'red' : 'green'}`;
   if (hdrSos)    hdrSos.textContent  = deviceState.sos ? 'EMERGENCY' : 'Normal';
 
-  // Status Cards
+  // Hero Card Names
   const devTxt = document.getElementById('deviceStatusText');
-  const dotDev = document.getElementById('dotDevice');
-  if (devTxt) devTxt.textContent = deviceState.online ? 'Online ✓' : 'Offline';
-  if (dotDev) dotDev.className   = `sc-dot ${deviceState.online ? 'ok' : 'bad'}`;
+  if (devTxt) devTxt.textContent = deviceState.online ? 'Watch Connected ✓' : 'Watch Disconnected';
 
   const gpsTxt = document.getElementById('gpsStatusText');
-  const dotGps = document.getElementById('dotGps');
-  if (gpsTxt) gpsTxt.textContent = deviceState.gpsActive ? 'Active ✓' : 'Searching';
-  if (dotGps) dotGps.className   = `sc-dot ${deviceState.gpsActive ? 'ok' : 'bad'}`;
+  if (gpsTxt) gpsTxt.textContent = deviceState.gpsActive ? 'GPS Signal Active ✓' : 'GPS Searching…';
 
-  const sosTxt = document.getElementById('sosStatusText');
-  const dotSos = document.getElementById('dotSos');
-  if (sosTxt) {
-    sosTxt.textContent = deviceState.sos ? 'EMERGENCY' : 'Normal';
-    sosTxt.style.color = deviceState.sos ? 'var(--red)' : 'var(--text-1)';
-  }
-  if (dotSos) dotSos.className = `sc-dot ${deviceState.sos ? 'bad' : 'ok'}`;
+  const mqttSub = document.getElementById('mqttSub');
+  if (mqttSub) mqttSub.textContent = deviceState.online ? 'Global HiveMQ Bridge Active ✓' : 'Connecting to HiveMQ Broker…';
 
   // GPS Map Pill
   const gpsPill = document.getElementById('gpsPill');
   const gpsAcc  = document.getElementById('gpsAccText');
-  if (gpsPill) gpsPill.className = `gps-pill ${deviceState.gpsActive ? '' : 'off'}`;
+  if (gpsPill) gpsPill.className = `gps-status-badge ${deviceState.gpsActive ? '' : 'off'}`;
   if (gpsAcc)  gpsAcc.textContent  = deviceState.gpsActive ? `Accuracy: ~${deviceState.accuracy}` : 'Searching...';
 
   // OLED Display Mirror
@@ -607,7 +584,7 @@ function renderContacts() {
   if (!grid) return;
 
   if (familyContacts.length === 0) {
-    grid.innerHTML = `<div style="text-align:center; padding:24px; color:var(--text-2); font-size:13px;">No emergency contacts added yet. Tap below to add your family members.</div>`;
+    grid.innerHTML = `<div style="text-align:center; padding:24px; color:var(--text-mid); font-size:13px;">No emergency contacts added yet. Tap below to add your family members.</div>`;
     return;
   }
 
@@ -616,16 +593,16 @@ function renderContacts() {
     const initial = escapeHtml(c.name.charAt(0).toUpperCase());
 
     return `
-      <div class="contact-card">
-        <div class="contact-avatar ${colorClass}">${initial}</div>
-        <div class="contact-info">
-          <div class="contact-name">${escapeHtml(c.name)}</div>
-          <div class="contact-phone">🇮🇳 ${escapeHtml(c.phone)}</div>
-          <div class="contact-key">🔑 CallMeBot API Key: ${escapeHtml(c.apiKey || '123456')}</div>
+      <div class="contact-card-item">
+        <div class="contact-avatar-circle ${colorClass}">${initial}</div>
+        <div class="contact-details">
+          <div class="contact-name-text">${escapeHtml(c.name)}</div>
+          <div class="contact-phone-text">🇮🇳 ${escapeHtml(c.phone)}</div>
+          <div class="contact-key-text">🔑 CallMeBot API Key: ${escapeHtml(c.apiKey || '123456')}</div>
         </div>
-        <div class="contact-actions">
-          <button class="contact-test-btn" onclick="testWhatsAppApiKey('${escapeHtml(c.phone)}', '${escapeHtml(c.apiKey)}', '${escapeHtml(c.name)}')">🧪 Test</button>
-          <button class="contact-del-btn" onclick="deleteContact('${c.id}')">🗑</button>
+        <div class="contact-actions-row">
+          <button class="btn-contact-test" onclick="testWhatsAppApiKey('${escapeHtml(c.phone)}', '${escapeHtml(c.apiKey)}', '${escapeHtml(c.name)}')">🧪 Test</button>
+          <button class="btn-contact-delete" onclick="deleteContact('${c.id}')">🗑</button>
         </div>
       </div>
     `;
@@ -652,7 +629,7 @@ function testWhatsAppApiKey(phone, apiKey, name) {
   .catch(() => sendWhatsAppToContact(cleanPhone));
 }
 
-// ── WI-FI MODAL HANDLERS ────────────────────────────────────────────────
+// ── WI-FI MODAL SHEET ────────────────────────────────────────────────────
 function showWifiModal() {
   const modal = document.getElementById('wifiModal');
   if (modal) modal.classList.add('show');
@@ -680,7 +657,7 @@ function copyWifiPass() {
   }).catch(() => alert('Password: Jevin'));
 }
 
-// ── LOG ENGINE ───────────────────────────────────────────────────────────
+// ── AUDIT TELEMETRY LOG ──────────────────────────────────────────────────
 function addTelemetryLog(source, eventType, details) {
   const item = { time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }), source, type: eventType, details };
   telemetryLogs.unshift(item);
@@ -690,16 +667,16 @@ function addTelemetryLog(source, eventType, details) {
   if (!container) return;
 
   const tagClass = source === 'SOS' ? 'tag-sos' : (source === 'LOC' ? 'tag-loc' : (source === 'ERR' ? 'tag-err' : 'tag-sys'));
-  const entryClass = source === 'SOS' ? 'sos' : (source === 'LOC' ? 'loc' : '');
+  const entryClass = source === 'SOS' ? 'sos' : '';
 
   container.innerHTML = telemetryLogs.map((l) => `
-    <div class="log-entry ${entryClass}">
-      <span class="log-tag ${tagClass}">${l.source}</span>
-      <div class="log-text">
-        <strong>${escapeHtml(l.type)}</strong>
-        <div style="color:var(--text-2); font-size:11px; margin-top:2px;">${escapeHtml(l.details || '')}</div>
+    <div class="log-item-row ${entryClass}">
+      <span class="log-tag-badge ${tagClass}">${l.source}</span>
+      <div class="log-details-box">
+        <div class="log-event-title">${escapeHtml(l.type)}</div>
+        <div class="log-event-sub">${escapeHtml(l.details || '')}</div>
       </div>
-      <div class="log-time">${l.time}</div>
+      <div class="log-timestamp">${l.time}</div>
     </div>
   `).join('');
 }

@@ -1,0 +1,13 @@
+{
+  "name": "safety-watch-dashboard",
+  "version": "1.0.0",
+  "description": "AI-Powered SafetyWatch ESP32-S3 Command Hub with Real-Time Location, Leaflet Map, WhatsApp & SMS Dispatch",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  }
+}

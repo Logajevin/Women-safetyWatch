@@ -1,5 +1,6 @@
 // ============================================================================
-// SafetyWatch AI — Mobile UI Logic & MQTT Cloud Integration
+// SafetyWatch AI — JEV-pvt Mobile UI Engine (v15)
+// Features: Touch Swipe Gesture Lock, Fixed Static Nav, CallMeBot API Gateway
 // ============================================================================
 
 let deviceState = {
@@ -35,6 +36,42 @@ let familyContacts = [
 
 let telemetryLogs = [];
 
+// ── CUSTOM TOUCH SWIPE GESTURE ENGINE (Prevents browser back navigation) ─
+let touchStartX = 0;
+let touchStartY = 0;
+const TABS_ORDER = ['home', 'map', 'contacts', 'logs'];
+
+document.addEventListener('touchstart', (e) => {
+  if (e.touches && e.touches[0]) {
+    touchStartX = e.touches[0].clientX;
+    touchStartY = e.touches[0].clientY;
+  }
+}, { passive: true });
+
+document.addEventListener('touchend', (e) => {
+  if (!e.changedTouches || !e.changedTouches[0]) return;
+  const touchEndX = e.changedTouches[0].clientX;
+  const touchEndY = e.changedTouches[0].clientY;
+  const diffX = touchEndX - touchStartX;
+  const diffY = touchEndY - touchStartY;
+
+  // Horizontal swipe gesture check (diffX > 70px)
+  if (Math.abs(diffX) > 70 && Math.abs(diffX) > Math.abs(diffY) * 1.5) {
+    const activeTab = document.querySelector('.tab-pane.active');
+    if (!activeTab) return;
+    const currentTabId = activeTab.id.replace('tab-', '');
+    let currentIndex = TABS_ORDER.indexOf(currentTabId);
+
+    if (diffX < 0 && currentIndex < TABS_ORDER.length - 1) {
+      // Swiped Left -> Next Tab
+      switchTab(TABS_ORDER[currentIndex + 1]);
+    } else if (diffX > 0 && currentIndex > 0) {
+      // Swiped Right -> Previous Tab
+      switchTab(TABS_ORDER[currentIndex - 1]);
+    }
+  }
+}, { passive: true });
+
 // ── PERMISSION SPLASH & AUTO-ENTER ───────────────────────────────────────
 function grantPermissions() {
   const btn = document.getElementById('btnGrant');
@@ -43,7 +80,6 @@ function grantPermissions() {
     btn.textContent = 'Acquiring GPS & Notification Permissions...';
   }
 
-  // 1. Request GPS Geolocation
   if (navigator.geolocation) {
     navigator.geolocation.getCurrentPosition(
       (pos) => {
@@ -70,7 +106,6 @@ function grantPermissions() {
     enterDashboard();
   }
 
-  // 2. Request Notification Permission
   if ('Notification' in window) {
     Notification.requestPermission().then((perm) => {
       const badge = document.getElementById('ps-noti');
@@ -106,7 +141,7 @@ function enterDashboard() {
   startAutomaticMobileGPS();
   initMQTTBridge();
 
-  addTelemetryLog('SYS', 'SafetyWatch Dashboard Active', 'Permissions initialized');
+  addTelemetryLog('SYS', 'JEV-pvt Dashboard Active', 'Mobile UI Ready');
   renderUI();
 }
 
@@ -351,7 +386,7 @@ function buildEmergencyMessage() {
   const mapsUrl = deviceState.mapsUrl || `https://maps.google.com/?q=${deviceState.lat},${deviceState.lon}`;
   const timestamp = new Date().toLocaleString();
 
-  return `🚨 EMERGENCY ALERT - SAFETY WATCH 🚨\n\n` +
+  return `🚨 EMERGENCY ALERT - JEV-pvt SAFETY WATCH 🚨\n\n` +
          `HARDWARE SOS BUTTON PRESSED!\n` +
          `📅 Time: ${timestamp}\n` +
          `📍 Location: ${deviceState.lat}, ${deviceState.lon}\n` +
@@ -449,19 +484,16 @@ function jumpToAnchor(anchorId) {
 }
 
 function switchTab(tabName) {
-  // 1. Hide all tab panes, show target tab pane
   document.querySelectorAll('.tab-pane').forEach((el) => el.classList.remove('active'));
   const targetTab = document.getElementById(`tab-${tabName}`);
   if (targetTab) targetTab.classList.add('active');
 
-  // 2. Update bottom nav buttons
   document.querySelectorAll('.nav-tab-btn').forEach((el) => el.classList.remove('active'));
   const targetNav = document.getElementById(`nav-${tabName}`);
   if (targetNav) targetNav.classList.add('active');
 
-  // 3. Update top category pills to stay in sync
   document.querySelectorAll('.cat-pill').forEach((el) => el.classList.remove('active'));
-  let targetPillIndex = 0; // 'all' by default
+  let targetPillIndex = 0;
   if (tabName === 'map') targetPillIndex = 2;
   else if (tabName === 'contacts') targetPillIndex = 3;
   else if (tabName === 'logs') targetPillIndex = 0;
@@ -469,11 +501,9 @@ function switchTab(tabName) {
   const catPills = document.querySelectorAll('.cat-pill');
   if (catPills[targetPillIndex]) catPills[targetPillIndex].classList.add('active');
 
-  // 4. Scroll main scroll area to top on tab change
   const scrollArea = document.getElementById('mainScrollArea');
   if (scrollArea) scrollArea.scrollTo({ top: 0, behavior: 'smooth' });
 
-  // 5. Invalidate Leaflet map size if switching to map tab
   if (tabName === 'map' && map) {
     setTimeout(() => map.invalidateSize(), 200);
   }
@@ -505,7 +535,6 @@ function renderUI() {
     if (bannerTime) bannerTime.textContent = `Activated at ${new Date(deviceState.sosTimestamp || Date.now()).toLocaleTimeString()}`;
   }
 
-  // Header Telemetry Pills
   const hdrDevDot = document.getElementById('hdrDevDot');
   const hdrDevice = document.getElementById('hdrDevice');
   if (hdrDevDot) hdrDevDot.className = `telem-dot ${deviceState.online ? 'green' : 'red'}`;
@@ -521,7 +550,6 @@ function renderUI() {
   if (hdrSosDot) hdrSosDot.className = `telem-dot ${deviceState.sos ? 'red' : 'green'}`;
   if (hdrSos)    hdrSos.textContent  = deviceState.sos ? 'EMERGENCY' : 'Normal';
 
-  // Hero Card Names
   const devTxt = document.getElementById('deviceStatusText');
   if (devTxt) devTxt.textContent = deviceState.online ? 'Watch Connected ✓' : 'Watch Disconnected';
 
@@ -531,13 +559,11 @@ function renderUI() {
   const mqttSub = document.getElementById('mqttSub');
   if (mqttSub) mqttSub.textContent = deviceState.online ? 'Global HiveMQ Bridge Active ✓' : 'Connecting to HiveMQ Broker…';
 
-  // GPS Map Pill
   const gpsPill = document.getElementById('gpsPill');
   const gpsAcc  = document.getElementById('gpsAccText');
   if (gpsPill) gpsPill.className = `gps-status-badge ${deviceState.gpsActive ? '' : 'off'}`;
   if (gpsAcc)  gpsAcc.textContent  = deviceState.gpsActive ? `Accuracy: ~${deviceState.accuracy}` : 'Searching...';
 
-  // OLED Display Mirror
   const oledEl = document.getElementById('oledScreen');
   if (oledEl) {
     if (deviceState.sos) {

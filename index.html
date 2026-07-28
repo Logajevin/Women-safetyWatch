@@ -10,18 +10,18 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="theme-color" content="#4C1D95">
-  <meta name="description" content="SafetyWatch AI — Ultra-Neat Mobile Safety Dashboard">
+  <meta name="description" content="JEV-pvt — Womens &amp; Child Safety Watch Mobile Dashboard">
   <title>JEV-pvt — Women's &amp; Child Safety Watch</title>
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
-  <link rel="stylesheet" href="style.css?v=20260728_v14">
+  <link rel="stylesheet" href="style.css?v=20260728_v15">
 </head>
 <body>
 
-<div class="mobile-wrapper">
+<div class="mobile-wrapper" id="swipeContainer">
 
   <!-- ═══════════════════════════════════════════════════════
        PERMISSION SPLASH SCREEN (Auto-Enters)
@@ -34,7 +34,7 @@
       </svg>
     </div>
     <div class="splash-title">JEV-pvt</div>
-    <h6 class="splash-sub" style="font-size:14px; font-weight:600; color:rgba(255,255,255,0.85); margin-top:4px;">Womens &amp; Child Safety Watch</h6>
+    <h6 class="splash-sub">Womens &amp; Child Safety Watch</h6>
 
     <div class="splash-perm-card">
       <div class="perm-item-row">
@@ -79,8 +79,8 @@
         <div class="user-profile-badge">
           <div class="profile-avatar">🛡️</div>
           <div>
-            <div class="profile-title" style="font-size:22px; font-weight:900; letter-spacing:-0.5px;">JEV-pvt</div>
-            <h6 class="profile-subtitle" style="font-size:12px; font-weight:600; color:rgba(255,255,255,0.8); margin-top:1px;">Womens &amp; Child Safety Watch</h6>
+            <div class="profile-title">JEV-pvt</div>
+            <h6 class="profile-subtitle">Womens &amp; Child Safety Watch</h6>
           </div>
         </div>
         <button class="header-action-btn" id="sirenSoundBtn" onclick="toggleAudioSiren()" title="Toggle Siren">
@@ -113,7 +113,7 @@
       <path d="M0,0 C150,28 350,28 500,0 L500,28 L0,28 Z"></path>
     </svg>
 
-    <!-- CATEGORY PILLS BAR / TOP MENU (FULLY WORKING ANCHORS) -->
+    <!-- CATEGORY PILLS BAR / TOP MENU -->
     <div class="category-tabs-bar" id="topNavPills">
       <a href="#sec-overview" class="cat-pill active" onclick="switchCategory('all', this)">All Status</a>
       <a href="#sec-sos" class="cat-pill" onclick="switchCategory('sos', this)">Hardware SOS</a>
@@ -141,10 +141,10 @@
 
         <div class="section-title" id="sec-overview">Device &amp; Safety Overview</div>
 
-        <!-- HERO RANK CARDS (INTERACTIVE ANCHORS) -->
+        <!-- HERO RANK CARDS (INTERACTIVE MENU SWITCHERS) -->
         <div class="hero-cards-grid">
           
-          <!-- Card 1: Blue (Watch Connection -> Open Wi-Fi Modal Anchor) -->
+          <!-- Card 1: Blue (Watch Connection -> Open Wi-Fi Modal) -->
           <div class="hero-card c-blue interactive-anchor" onclick="showWifiModal()">
             <div class="hero-left">
               <div class="hero-icon-bubble">📡</div>
@@ -159,7 +159,7 @@
             </div>
           </div>
 
-          <!-- Card 2: Gold/Orange (GPS Signal -> Jump to GPS Map Tab Anchor) -->
+          <!-- Card 2: Gold/Orange (GPS Signal -> Switch to GPS Map Tab) -->
           <div class="hero-card c-gold interactive-anchor" onclick="switchTab('map')">
             <div class="hero-left">
               <div class="hero-icon-bubble">📍</div>
@@ -174,13 +174,13 @@
             </div>
           </div>
 
-          <!-- Card 3: Pink (WhatsApp Gateway -> Jump to Contacts Tab Anchor) -->
+          <!-- Card 3: Pink (WhatsApp Gateway -> Switch to Contacts Tab) -->
           <div class="hero-card c-pink interactive-anchor" onclick="switchTab('contacts')">
             <div class="hero-left">
               <div class="hero-icon-bubble">💬</div>
               <div>
                 <div class="hero-name">WhatsApp Engine</div>
-                <div class="hero-sub">Tap to manage Family Emergency Contacts</div>
+                <div class="hero-sub">Tap to manage Family Contacts &amp; API</div>
               </div>
             </div>
             <div class="rank-bubble">
@@ -189,7 +189,7 @@
             </div>
           </div>
 
-          <!-- Card 4: Purple (HiveMQ Cloud -> Scroll to OLED Watch Mirror Anchor) -->
+          <!-- Card 4: Purple (HiveMQ Cloud -> Scroll to OLED Mirror) -->
           <div class="hero-card c-purple interactive-anchor" onclick="jumpToAnchor('sec-oled')">
             <div class="hero-left">
               <div class="hero-icon-bubble">☁️</div>
@@ -204,6 +204,15 @@
             </div>
           </div>
 
+        </div>
+
+        <!-- DEDICATED WI-FI CONNECTION CARD -->
+        <div class="wifi-quick-card">
+          <div>
+            <div style="font-size:15px; font-weight:800;">📶 ESP32 Wi-Fi Setup</div>
+            <div style="font-size:12px; opacity:0.8; margin-top:2px;">SSID: <strong>SafetyWatch</strong> • Password: <strong>Jevin</strong></div>
+          </div>
+          <button class="wifi-card-btn" onclick="showWifiModal()">Connect Wi-Fi</button>
         </div>
 
         <!-- SOS HERO ACTION CARD -->
@@ -229,9 +238,9 @@
         <div class="oled-container-card">
           <div class="oled-card-top">
             <div class="oled-card-title">SSD1306 • 0.96" Display</div>
-            <div class="oled-chip">GPIO 8/9 • 0x3C</div>
+            <div class="oled-chip">GPIO 1/2 • 0x3C</div>
           </div>
-          <div class="oled-screen-frame" id="oledScreen">SafetyWatch AI
+          <div class="oled-screen-frame" id="oledScreen">JEV-pvt SafetyWatch
 WiFi: Searching...
 SOS: Normal
 Lat: --
@@ -281,13 +290,26 @@ Lon: --</div>
         </div>
       </div><!-- /tab-map -->
 
-      <!-- ── TAB 3: CONTACTS ────────────────────────── -->
+      <!-- ── TAB 3: CONTACTS & CALLMEBOT WHATSAPP ────── -->
       <div id="tab-contacts" class="tab-pane">
-        <div class="section-title" id="sec-contacts">Family Emergency Contacts</div>
+        <div class="section-title" id="sec-contacts">Family Emergency Contacts &amp; WhatsApp API</div>
 
-        <a class="callmebot-banner-btn" href="https://wa.me/34644519169?text=I%20allow%20callmebot%20to%20send%20me%20messages" target="_blank" rel="noopener">
-          ⚡ 1-Click Activate CallMeBot WhatsApp API
-        </a>
+        <!-- CallMeBot Setup & Example Wizard Card -->
+        <div class="callmebot-wizard-card">
+          <div class="callmebot-head">⚡ CallMeBot WhatsApp API Gateway</div>
+          <div class="callmebot-sub">Automatically delivers emergency WhatsApp messages to your family numbers!</div>
+          
+          <div class="callmebot-steps">
+            <strong>📖 How to Activate (Example):</strong><br>
+            1. Tap button below to send WhatsApp msg <code>I allow callmebot to send me messages</code> to <code>+34 644 51 91 69</code>.<br>
+            2. CallMeBot will reply instantly with your API Key (e.g. <code>123456</code>).<br>
+            3. Enter your phone &amp; API key in the list below!
+          </div>
+
+          <a class="callmebot-activate-btn" href="https://wa.me/34644519169?text=I%20allow%20callmebot%20to%20send%20me%20messages" target="_blank" rel="noopener">
+            ⚡ 1-Click Activate CallMeBot Bot
+          </a>
+        </div>
 
         <div class="contacts-list-container" id="contactsGrid"></div>
 
@@ -318,7 +340,7 @@ Lon: --</div>
 
     </div><!-- /content-scroll -->
 
-    <!-- FLOATING BOTTOM NAVIGATION BAR -->
+    <!-- FLOATING PERMANENT BOTTOM NAVIGATION BAR -->
     <nav class="bottom-nav-bar">
       <a href="#sec-overview" class="nav-tab-btn active" id="nav-home" onclick="switchTab('home')">
         <div class="nav-icon-bubble">
@@ -366,6 +388,6 @@ Lon: --</div>
 </div><!-- /mobile-wrapper -->
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-<script src="app.js?v=20260728_v13"></script>
+<script src="app.js?v=20260728_v15"></script>
 </body>
 </html>

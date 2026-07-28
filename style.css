@@ -1,7 +1,7 @@
 /* ============================================================================
-   SafetyWatch AI — Premium Ultra-Neat Mobile Design System
-   Stack: Modern Glassmorphism, Curved Wave Separator, Vibrant Gradients
-   Colors: Deep Violet (#4C1D95), Bright Purple (#7C3AED), Soft Lavender (#EDE9FE)
+   JEV-pvt Womens & Child Safety Watch — Desktop & Mobile CSS (v15)
+   Features: Fixed Permanent Bottom Navigation, Desktop & Laptop Responsive View,
+   Swipe Gesture Lock, Dedicated Wi-Fi Connection Card, CallMeBot Example Box.
    ============================================================================ */
 
 :root {
@@ -37,26 +37,62 @@
   -webkit-tap-highlight-color: transparent;
 }
 
-body {
-  font-family: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+/* Prevent mobile browser swipe back/forward gestures */
+html, body {
+  overscroll-behavior-x: none;
+  touch-action: pan-y;
   background: var(--bg-main);
   color: var(--text-dark);
+  font-family: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   min-height: 100dvh;
-  overflow-x: hidden;
-  display: flex;
-  justify-content: center;
 }
 
-/* Mobile Frame Wrapper (centers on desktop, full width on mobile) */
+body {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+/* ═══════════════════════════════════════════
+   RESPONSIVE WRAPPER (Mobile Frame / Laptop View)
+═══════════════════════════════════════════ */
 .mobile-wrapper {
   width: 100%;
   max-width: 480px;
   min-height: 100dvh;
   background: #FFFFFF;
-  box-shadow: 0 0 50px rgba(0,0,0,0.1);
+  box-shadow: 0 0 50px rgba(0, 0, 0, 0.1);
   display: flex;
   flex-direction: column;
   position: relative;
+  overflow: hidden;
+  transition: max-width 0.3s ease;
+}
+
+/* LAPTOP & DESKTOP BETTER VIEW (Responsive Grid) */
+@media (min-width: 768px) {
+  body {
+    padding: 20px 0;
+    background: radial-gradient(circle at 50% 20%, #EDE9FE 0%, #F3F4F6 100%);
+  }
+  .mobile-wrapper {
+    max-width: 1000px;
+    min-height: calc(100dvh - 40px);
+    border-radius: 32px;
+    border: 1px solid rgba(124, 58, 237, 0.15);
+    box-shadow: 0 25px 60px rgba(124, 58, 237, 0.15);
+  }
+  .hero-cards-grid {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px !important;
+  }
+  .content-scroll {
+    padding: 0 32px 120px !important;
+  }
+  .header-hero {
+    padding: 40px 32px 20px !important;
+  }
 }
 
 /* ═══════════════════════════════════════════
@@ -111,7 +147,7 @@ body {
 }
 
 .splash-sub {
-  color: rgba(255, 255, 255, 0.8);
+  color: rgba(255, 255, 255, 0.85);
   font-size: 14px;
   margin: 6px 0 28px;
   text-align: center;
@@ -185,12 +221,13 @@ body {
 #app {
   display: none;
   flex-direction: column;
-  min-height: 100dvh;
+  height: 100dvh;
   background: #F9FAFB;
+  position: relative;
 }
 #app.show { display: flex; }
 
-/* ── HEADER WITH CURVED WAVE ───────────────── */
+/* ── HEADER WITH PURPLE GRADIENT ────────────── */
 .header-hero {
   background: linear-gradient(150deg, #4C1D95 0%, #6D28D9 45%, #8B5CF6 100%);
   padding: 44px 20px 20px;
@@ -225,8 +262,8 @@ body {
   box-shadow: 0 4px 14px rgba(0,0,0,0.15);
 }
 
-.profile-title { color: #FFFFFF; font-size: 20px; font-weight: 800; letter-spacing: -0.3px; }
-.profile-subtitle { color: rgba(255, 255, 255, 0.75); font-size: 12px; font-weight: 500; margin-top: 1px; }
+.profile-title { color: #FFFFFF; font-size: 22px; font-weight: 900; letter-spacing: -0.5px; }
+.profile-subtitle { color: rgba(255, 255, 255, 0.8); font-size: 12px; font-weight: 600; margin-top: 1px; }
 
 .header-action-btn {
   width: 42px;
@@ -242,7 +279,7 @@ body {
   backdrop-filter: blur(10px);
 }
 
-/* Header Live Telemetry Pills */
+/* Header Telemetry Pills */
 .telemetry-pills-row {
   display: flex;
   gap: 8px;
@@ -259,7 +296,12 @@ body {
   padding: 10px 8px;
   text-align: center;
   backdrop-filter: blur(12px);
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform 0.15s, background 0.15s;
 }
+.telem-pill:hover  { background: rgba(255, 255, 255, 0.25); transform: translateY(-2px); }
+.telem-pill:active { transform: scale(0.97); }
 
 .telem-val { color: #FFFFFF; font-size: 15px; font-weight: 800; }
 .telem-lbl { color: rgba(255, 255, 255, 0.7); font-size: 10px; font-weight: 600; margin-top: 2px; text-transform: uppercase; }
@@ -278,7 +320,7 @@ body {
 }
 .header-wave path { fill: #F9FAFB; }
 
-/* ── CATEGORY PILLS BAR (Reference UI inspired) ─ */
+/* ── CATEGORY PILLS BAR / TOP MENU ───────────── */
 .category-tabs-bar {
   display: flex;
   gap: 8px;
@@ -300,6 +342,7 @@ body {
   border: 1.5px solid #E5E7EB;
   white-space: nowrap;
   cursor: pointer;
+  text-decoration: none;
   transition: all 0.2s;
 }
 .cat-pill.active {
@@ -309,15 +352,16 @@ body {
   box-shadow: 0 4px 14px rgba(124, 58, 237, 0.25);
 }
 
-/* ── MAIN SCROLLABLE BODY ────────────────────── */
+/* ── MAIN SCROLLABLE CONTENT AREA ────────────── */
 .content-scroll {
   flex: 1;
   overflow-y: auto;
-  padding: 0 16px 110px;
+  padding: 0 16px 120px;
+  scroll-behavior: smooth;
 }
 .content-scroll::-webkit-scrollbar { display: none; }
 
-/* ── SOS EMERGENCY BANNER ────────────────────── */
+/* ── LIVE SOS EMERGENCY BANNER ───────────────── */
 .sos-live-banner {
   display: none;
   background: linear-gradient(135deg, #DC2626, #EF4444);
@@ -349,7 +393,7 @@ body {
   cursor: pointer;
 }
 
-/* ── HERO CARDS (Pixel-Perfect to Reference UI) ─ */
+/* ── HERO CARDS ─────────────────────────────── */
 .section-title {
   font-size: 18px;
   font-weight: 800;
@@ -379,35 +423,6 @@ body {
 .hero-card.interactive-anchor:hover {
   transform: translateY(-2px);
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.15);
-}
-
-.telem-pill {
-  flex: 1;
-  background: rgba(255, 255, 255, 0.15);
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  border-radius: 16px;
-  padding: 10px 8px;
-  text-align: center;
-  backdrop-filter: blur(12px);
-  text-decoration: none;
-  cursor: pointer;
-  transition: transform 0.15s, background 0.15s;
-}
-.telem-pill:hover  { background: rgba(255, 255, 255, 0.25); transform: translateY(-2px); }
-.telem-pill:active { transform: scale(0.97); }
-
-.cat-pill {
-  padding: 8px 16px;
-  border-radius: var(--radius-pill);
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--text-mid);
-  background: #FFFFFF;
-  border: 1.5px solid #E5E7EB;
-  white-space: nowrap;
-  cursor: pointer;
-  text-decoration: none;
-  transition: all 0.2s;
 }
 
 .hero-card.c-blue   { background: var(--card-blue);   }
@@ -449,6 +464,32 @@ body {
 }
 .rank-num { font-size: 16px; font-weight: 900; }
 .rank-lbl { font-size: 8px; font-weight: 700; text-transform: uppercase; opacity: 0.8; margin-top: -2px; }
+
+/* Dedicated Wi-Fi Connection Card */
+.wifi-quick-card {
+  background: linear-gradient(135deg, #1E1B4B, #312E81);
+  border-radius: 22px;
+  padding: 16px 20px;
+  color: #FFFFFF;
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: 0 8px 24px rgba(30, 27, 75, 0.3);
+}
+
+.wifi-card-btn {
+  background: #7C3AED;
+  color: #FFFFFF;
+  border: none;
+  border-radius: 12px;
+  padding: 10px 16px;
+  font-family: 'Outfit', sans-serif;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+}
 
 /* ── BIG SOS BUTTON SECTION ─────────────────── */
 .sos-hero-card {
@@ -578,7 +619,7 @@ body {
 }
 .gps-status-badge.off { background: #FEE2E2; color: #B91C1C; }
 
-#map { height: 240px; background: #E5E7EB; }
+#map { height: 260px; background: #E5E7EB; }
 
 .coords-grid {
   display: grid;
@@ -621,7 +662,41 @@ body {
 .map-action-btn.primary { background: var(--primary-purple); color: #FFFFFF; }
 .map-action-btn.maps    { background: var(--primary-soft); color: var(--primary-purple); text-decoration: none; }
 
-/* ── CONTACTS PAGE ───────────────────────────── */
+/* ── CONTACTS & CALLMEBOT WHATSAPP PAGE ──────── */
+.callmebot-wizard-card {
+  background: linear-gradient(135deg, #10B981, #059669);
+  border-radius: 24px;
+  padding: 20px;
+  color: #FFFFFF;
+  margin-bottom: 16px;
+  box-shadow: 0 8px 24px rgba(16, 185, 129, 0.25);
+}
+
+.callmebot-head { font-size: 17px; font-weight: 800; margin-bottom: 4px; }
+.callmebot-sub  { font-size: 12px; opacity: 0.9; line-height: 1.4; }
+
+.callmebot-steps {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 16px;
+  padding: 12px;
+  margin: 12px 0;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.callmebot-activate-btn {
+  display: block;
+  text-align: center;
+  background: #FFFFFF;
+  color: #059669;
+  border-radius: 14px;
+  padding: 14px;
+  font-size: 14px;
+  font-weight: 800;
+  text-decoration: none;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
 .contacts-list-container {
   display: flex;
   flex-direction: column;
@@ -736,19 +811,6 @@ body {
   cursor: pointer;
 }
 
-.callmebot-banner-btn {
-  display: block;
-  text-align: center;
-  background: #DCFCE7;
-  color: #15803D;
-  border-radius: 14px;
-  padding: 12px;
-  font-size: 13px;
-  font-weight: 700;
-  text-decoration: none;
-  margin-bottom: 12px;
-}
-
 /* ── LOGS PAGE ───────────────────────────────── */
 .logs-panel-card {
   background: #FFFFFF;
@@ -814,16 +876,27 @@ body {
 .log-event-sub   { color: var(--text-mid); font-size: 11px; margin-top: 2px; }
 .log-timestamp   { color: var(--text-muted); font-size: 11px; white-space: nowrap; }
 
-/* ── FLOATING BOTTOM NAVIGATION ──────────────── */
+/* ── PERMANENT STATIC BOTTOM NAVIGATION BAR ───── */
 .bottom-nav-bar {
-  position: absolute;
-  bottom: 0; left: 0; right: 0;
+  position: fixed;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 480px;
   background: #FFFFFF;
-  border-top: 1px solid #F3F4F6;
-  padding: 10px 16px 20px;
+  border-top: 1px solid #E5E7EB;
+  padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
   display: flex;
-  z-index: 100;
-  box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.08);
+  z-index: 9999;
+  box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.1);
+}
+
+@media (min-width: 768px) {
+  .bottom-nav-bar {
+    max-width: 1000px;
+    border-radius: 0 0 32px 32px;
+  }
 }
 
 .nav-tab-btn {
@@ -860,9 +933,9 @@ body {
 /* ── WI-FI MODAL SHEET ───────────────────────── */
 .modal-overlay-backdrop {
   display: none;
-  position: absolute;
+  position: fixed;
   inset: 0;
-  z-index: 500;
+  z-index: 10000;
   background: rgba(0, 0, 0, 0.6);
   backdrop-filter: blur(4px);
   align-items: flex-end;
@@ -875,6 +948,7 @@ body {
   border-radius: 28px 28px 0 0;
   padding: 24px 20px 40px;
   width: 100%;
+  max-width: 480px;
   animation: sheetSlideUp 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 @keyframes sheetSlideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }

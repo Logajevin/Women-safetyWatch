@@ -37,10 +37,7 @@
   -webkit-tap-highlight-color: transparent;
 }
 
-/* Prevent mobile browser swipe back/forward gestures */
 html, body {
-  overscroll-behavior-x: none;
-  touch-action: pan-y;
   background: var(--bg-main);
   color: var(--text-dark);
   font-family: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;

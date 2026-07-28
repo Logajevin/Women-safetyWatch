@@ -36,42 +36,6 @@ let familyContacts = [
 
 let telemetryLogs = [];
 
-// ── CUSTOM TOUCH SWIPE GESTURE ENGINE (Prevents browser back navigation) ─
-let touchStartX = 0;
-let touchStartY = 0;
-const TABS_ORDER = ['home', 'map', 'contacts', 'logs'];
-
-document.addEventListener('touchstart', (e) => {
-  if (e.touches && e.touches[0]) {
-    touchStartX = e.touches[0].clientX;
-    touchStartY = e.touches[0].clientY;
-  }
-}, { passive: true });
-
-document.addEventListener('touchend', (e) => {
-  if (!e.changedTouches || !e.changedTouches[0]) return;
-  const touchEndX = e.changedTouches[0].clientX;
-  const touchEndY = e.changedTouches[0].clientY;
-  const diffX = touchEndX - touchStartX;
-  const diffY = touchEndY - touchStartY;
-
-  // Horizontal swipe gesture check (diffX > 70px)
-  if (Math.abs(diffX) > 70 && Math.abs(diffX) > Math.abs(diffY) * 1.5) {
-    const activeTab = document.querySelector('.tab-pane.active');
-    if (!activeTab) return;
-    const currentTabId = activeTab.id.replace('tab-', '');
-    let currentIndex = TABS_ORDER.indexOf(currentTabId);
-
-    if (diffX < 0 && currentIndex < TABS_ORDER.length - 1) {
-      // Swiped Left -> Next Tab
-      switchTab(TABS_ORDER[currentIndex + 1]);
-    } else if (diffX > 0 && currentIndex > 0) {
-      // Swiped Right -> Previous Tab
-      switchTab(TABS_ORDER[currentIndex - 1]);
-    }
-  }
-}, { passive: true });
-
 // ── PERMISSION SPLASH & AUTO-ENTER ───────────────────────────────────────
 function grantPermissions() {
   const btn = document.getElementById('btnGrant');

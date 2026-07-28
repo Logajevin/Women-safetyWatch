@@ -460,6 +460,7 @@ function switchTab(tabName) {
   let targetPillIndex = 0;
   if (tabName === 'map') targetPillIndex = 2;
   else if (tabName === 'contacts') targetPillIndex = 3;
+  else if (tabName === 'info') targetPillIndex = 4;
   else if (tabName === 'logs') targetPillIndex = 0;
 
   const catPills = document.querySelectorAll('.cat-pill');
@@ -484,6 +485,8 @@ function switchCategory(catName, btnEl) {
     switchTab('map');
   } else if (catName === 'wa') {
     switchTab('contacts');
+  } else if (catName === 'info') {
+    switchTab('info');
   } else {
     switchTab('home');
     setTimeout(() => jumpToAnchor('sec-overview'), 100);

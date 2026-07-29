@@ -66,18 +66,19 @@ body {
   transition: max-width 0.3s ease;
 }
 
-/* LAPTOP & DESKTOP BETTER VIEW (Responsive Grid) */
+/* LAPTOP & DESKTOP BETTER VIEW (Responsive Grid with Product Background) */
 @media (min-width: 768px) {
   body {
     padding: 20px 0;
-    background: radial-gradient(circle at 50% 20%, #EDE9FE 0%, #F3F4F6 100%);
+    background: linear-gradient(135deg, rgba(15, 23, 42, 0.88), rgba(46, 16, 101, 0.85)), url('jev_watch_hero.png') center/cover fixed no-repeat;
   }
   .mobile-wrapper {
     max-width: 1000px;
     min-height: calc(100dvh - 40px);
     border-radius: 32px;
-    border: 1px solid rgba(124, 58, 237, 0.15);
-    box-shadow: 0 25px 60px rgba(124, 58, 237, 0.15);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    box-shadow: 0 25px 60px rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(10px);
   }
   .hero-cards-grid {
     display: grid !important;
@@ -95,14 +96,11 @@ body {
 /* ═══════════════════════════════════════════
    PERMISSION SPLASH SCREEN
 ═══════════════════════════════════════════ */
-/* ═══════════════════════════════════════════
-   PERMISSION SPLASH SCREEN
-═══════════════════════════════════════════ */
 #splash {
   position: absolute;
   inset: 0;
   z-index: 9999;
-  background: linear-gradient(160deg, rgba(30, 10, 60, 0.85) 0%, rgba(107, 33, 168, 0.88) 50%, rgba(124, 58, 237, 0.9) 100%), url('jev_watch_hero.png') center/cover no-repeat;
+  background: linear-gradient(160deg, rgba(15, 23, 42, 0.65) 0%, rgba(88, 28, 135, 0.65) 50%, rgba(124, 58, 237, 0.7) 100%), url('jev_watch_hero.png') center/cover no-repeat;
   display: flex;
   flex-direction: column;
   align-items: center;

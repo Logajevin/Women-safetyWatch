@@ -66,11 +66,11 @@ body {
   transition: max-width 0.3s ease;
 }
 
-/* LAPTOP & DESKTOP BETTER VIEW (Responsive Grid with Product Background) */
+/* LAPTOP & DESKTOP BETTER VIEW (Responsive Grid with Team 8 Lab Background) */
 @media (min-width: 768px) {
   body {
     padding: 20px 0;
-    background: linear-gradient(135deg, rgba(15, 23, 42, 0.88), rgba(46, 16, 101, 0.85)), url('jev_watch_hero.png') center/cover fixed no-repeat;
+    background: linear-gradient(135deg, rgba(15, 23, 42, 0.85), rgba(46, 16, 101, 0.82)), url('team_lab_photo.jpg') center/cover fixed no-repeat;
   }
   .mobile-wrapper {
     max-width: 1000px;
@@ -100,7 +100,7 @@ body {
   position: absolute;
   inset: 0;
   z-index: 9999;
-  background: linear-gradient(160deg, rgba(15, 23, 42, 0.65) 0%, rgba(88, 28, 135, 0.65) 50%, rgba(124, 58, 237, 0.7) 100%), url('jev_watch_hero.png') center/cover no-repeat;
+  background: linear-gradient(160deg, rgba(15, 23, 42, 0.65) 0%, rgba(88, 28, 135, 0.68) 50%, rgba(124, 58, 237, 0.72) 100%), url('team_lab_photo.jpg') center/cover no-repeat;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -234,7 +234,7 @@ body {
 
 /* ── HEADER WITH PURPLE GRADIENT & HERO OVERLAY ── */
 .header-hero {
-  background: linear-gradient(150deg, rgba(60, 20, 120, 0.92) 0%, rgba(109, 40, 217, 0.9) 50%, rgba(139, 92, 246, 0.92) 100%), url('jev_watch_hero.png') center/cover no-repeat;
+  background: linear-gradient(150deg, rgba(60, 20, 120, 0.88) 0%, rgba(109, 40, 217, 0.86) 50%, rgba(139, 92, 246, 0.88) 100%), url('team_lab_photo.jpg') center/cover no-repeat;
   padding: 44px 20px 20px;
   position: relative;
 }

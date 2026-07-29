@@ -95,11 +95,14 @@ body {
 /* ═══════════════════════════════════════════
    PERMISSION SPLASH SCREEN
 ═══════════════════════════════════════════ */
+/* ═══════════════════════════════════════════
+   PERMISSION SPLASH SCREEN
+═══════════════════════════════════════════ */
 #splash {
   position: absolute;
   inset: 0;
   z-index: 9999;
-  background: linear-gradient(160deg, #3B0764 0%, #6B21A8 40%, #7C3AED 75%, #A855F7 100%);
+  background: linear-gradient(160deg, rgba(30, 10, 60, 0.85) 0%, rgba(107, 33, 168, 0.88) 50%, rgba(124, 58, 237, 0.9) 100%), url('jev_watch_hero.png') center/cover no-repeat;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -118,16 +121,23 @@ body {
 .splash-badge-icon {
   width: 96px;
   height: 96px;
-  background: rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.18);
   border-radius: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 24px;
+  margin-bottom: 20px;
   backdrop-filter: blur(16px);
-  border: 1.5px solid rgba(255, 255, 255, 0.35);
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.25);
+  border: 1.5px solid rgba(255, 255, 255, 0.4);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
   animation: auraPulse 2.5s ease-in-out infinite;
+}
+
+.splash-badge-icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 @keyframes auraPulse {
@@ -224,9 +234,9 @@ body {
 }
 #app.show { display: flex; }
 
-/* ── HEADER WITH PURPLE GRADIENT ────────────── */
+/* ── HEADER WITH PURPLE GRADIENT & HERO OVERLAY ── */
 .header-hero {
-  background: linear-gradient(150deg, #4C1D95 0%, #6D28D9 45%, #8B5CF6 100%);
+  background: linear-gradient(150deg, rgba(60, 20, 120, 0.92) 0%, rgba(109, 40, 217, 0.9) 50%, rgba(139, 92, 246, 0.92) 100%), url('jev_watch_hero.png') center/cover no-repeat;
   padding: 44px 20px 20px;
   position: relative;
 }
